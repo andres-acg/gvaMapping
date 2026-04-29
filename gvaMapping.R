@@ -1,0 +1,1319 @@
+## Everything in this file and any files in the R directory are sourced during `simInit()`;
+## all functions and objects are put into the `simList`.
+## To use objects, use `sim$xxx` (they are globally available to all modules).
+## Functions can be used inside any function that was sourced in this module;
+## they are namespaced to the module, just like functions in R packages.
+## If exact location is required, functions will be: `sim$.mods$<moduleName>$FunctionName`.
+defineModule(sim, list(
+  name = "gvaMapping",
+  description = "Ground vegetation attributes (GVA) mapping module for SpaDES",
+  keywords = "ground vegetation",
+  authors = structure(list(list(given = c("Andres"), family = "Caseiro Guilhem", role = c("aut", "cre"), email = "andres.caseiro-guilhem.1@ulaval.ca", comment = NULL)), class = "person"),
+  childModules = character(0),
+  version = list(gvaMapping = "0.0.0.9001"),
+  timeframe = as.POSIXlt(c(NA, NA)),
+  timeunit = "year",
+  citation = list("citation.bib"),
+  documentation = list("NEWS.md", "README.md", "gvaMapping.Rmd"),
+  reqdPkgs = list("SpaDES.core (>= 2.1.5.9000)", 
+                  "dplyr", 
+                  "readxl",
+                  "lubridate", 
+                  "data.table",
+                  "tidyr",
+                  "units",
+                  "gtools", 
+                  "modi",
+                  #GIS
+                  "sf",
+                  "terra", 
+                  "ggspatial",
+                  #cross-validation
+                  "metrica",
+                  "sampling", 
+                  "BalancedSampling",
+                  #parellization
+                  "parallel",
+                  "doParallel", 
+                  "foreach", 
+                  #visualization
+                  "ggplot2",
+                  "cowplot"),
+  
+  parameters = bindrows(
+    #defineParameter("paramName", "paramClass", value, min, max, "parameter description"),
+    
+    #PLOT DATASETS parameters
+    # type of measurement
+    defineParameter("measure_class", "character", "intensive", NA, NA,
+                    "Type of measurement at the plot level. 
+                    
+                      'extensive' = total quantity dependent on sampled area 
+                       (e.g., total biomass, total counts); 
+                    values will be converted to density by dividing by sampling area. 
+                    
+                      'intensive' = already standardized per unit area or proportion
+                       (e.g., biomass density, individuals per hectare, percent cover); 
+                    values are used directly without area correction."),
+    
+    defineParameter("measure_name", "character", "Biomass", NA, NA,
+                    "Name of the ecological variable being mapped. Used for labeling outputs and plots 
+                       (e.g., Biomass, Abundance, Cover, Density)."),
+    
+    defineParameter("unit", "character", "kg ha⁻¹", NA, NA,
+                    "Unit of the measurement. Should reflect the final standardized output 
+                       (e.g., kg ha⁻¹, individuals ha⁻¹, %, g m⁻²). Supports Unicode formatting for exponents (e.g., ha⁻¹)."),
+    
+    
+    ##sampling size for each dataset to weight mean calculation - in m²
+    defineParameter("sampling_size_m2_dataset1", "numeric", 1, NA, NA, 
+                    "sampling unit size for dataset 1 (in m²)"),
+    
+    defineParameter("sampling_size_m2_dataset2", "numeric", 1, NA, NA, 
+                    "sampling unit size for dataset 2 (in m²)"),
+    
+    defineParameter("sampling_size_m2_dataset3", "numeric", 100, NA, NA, 
+                    "sampling unit size for dataset 3 (in m²)"),
+    
+    defineParameter("sampling_size_m2_dataset4", "numeric", 2, NA, NA, 
+                    "sampling unit size for dataset 4 (in m²)"),
+    
+    defineParameter("sampling_size_m2_dataset5", "numeric", 0.25, NA, NA, 
+                    "sampling unit size for dataset 5 (in m²)"),
+    
+    
+    # target gva(s)
+    defineParameter("target_gva", "character", c("mitis", "Cladmit", "MIT", "CLMI",
+                                                 "arbuscula", "Cladarb", "ARB",
+                                                 "rangiferina", "Cladran", "RAN", "CLRA",
+                                                 "stygia", "Cladsty", "STY",
+                                                 "stellaris", "Cladste", "STE", "CLST",
+                                                 "uncialis", "Cladunc", "unc", "CLADUNC",
+                                                 "amaurocrea", "Cladama", "AMA",
+                                                 "spp."), NA, NA, 
+                    "target GVA attribute(S) to be filtered and pooled"),
+  
+  
+    #LAND COVER PRODUCTS parameters
+    ## name of land cover products to be used in the analysis (must match the name in the file name of the land cover product)
+    defineParameter("name_land_cover1", "character", "MVI", NA, NA, 
+                    "name of land cover product 1 (must match the name in the file name of the land cover product)"),
+    
+    defineParameter("name_land_cover2", "character", "LCC10", NA, NA, 
+                    "name of land cover product 2 (must match the name in the file name of the land cover product)"),
+    
+    defineParameter("name_land_cover3", "character", "ABoVE", NA, NA,
+                    "name of land cover product 3 (must match the name in the file name of the land cover product)"),
+    
+    defineParameter("name_land_cover4", "character", "NTEMS", NA, NA,
+                    "name of land cover product 4 (must match the name in the file name of the land cover product)"),
+    
+    ##land cover product(s) reference year
+    defineParameter("land_cover_year", "numeric", 2010, NA, NA,
+                    "reference year for land cover products used to filter plots based on disturbance history"),
+    
+    #inapplicable land cover class(es) for mapping
+    defineParameter("inapplicable_classes_land_cover1", "numeric", c(11, 12, 20, 31, 34), NA, NA, 
+                    "vector of inapplicable land cover class(es) for land cover product 1 (e.g., water and urban classes)"),
+    
+    defineParameter("inapplicable_classes_land_cover2", "numeric", c(17, 18), NA, NA,
+                    "vector of inapplicable land cover class(es) for land cover product 2 (e.g., water and urban classes)"),
+    
+    defineParameter("inapplicable_classes_land_cover3", "numeric", c(13, 15), NA, NA,
+                    "vector of inapplicable land cover class(es) for land cover product 3 (e.g., water and urban classes)"),
+    
+    defineParameter("inapplicable_classes_land_cover4", "numeric", c(20, 31), NA, NA,
+                    "vector of inapplicable land cover class(es) for land cover product 4 (e.g., water and urban classes)"),
+    
+    
+    #PLOTTING parameters
+    #water classes for visualization and identification of their proportion in the study area
+     #compared to terrestrial classes
+    defineParameter("water_class_land_cover1", "numeric", 20, NA, NA,
+                    "water classe land cover 1"),
+    defineParameter("water_class_land_cover2", "numeric", 18, NA, NA,
+                    "water classe land cover 2"),
+    defineParameter("water_class_land_cover3", "numeric", 15, NA, NA,
+                    "water classe land cover 3"),
+    defineParameter("water_class_land_cover4", "numeric", 20, NA, NA,
+                    "water classe land cover 4"),
+    defineParameter(
+      "abbr_land_cover1", "list", c(
+        "11"  = "Shadow",
+        "12"  = "Cloud",
+        "20"  = "20-Water",
+        "31"  = "Snow/\nIce",
+        "32"  = "Rock/\nRubble",
+        "33"  = "Exposed \nland",
+        "34"  = "34-Roads*",
+        "40"  = "40-Bryoids*",
+        "51"  = "51-Shrub \ntall*",
+        "52"  = "52-Shrub \nlow",
+        "81"  = "81-Wet.-\ntreed",
+        "82"  = "82-Wet.-\nshrub",
+        "83"  = "83-Wet.-\nherb*",
+        "100" = "Herb",
+        "211" = "211-Conif.\ndense",
+        "212" = "212-Conif.\nopen",
+        "213" = "213-Conif.\nsparse",
+        "221" = "221-Broad.\ndense*",
+        "222" = "222-Broad.\nopen*",
+        "223" = "Broad.\nsparse",
+        "231" = "231-Mixed.\ndense*",
+        "232" = "232-Mixed.\nopen*",
+        "233" = "Mixed.\nsparse"
+      ),
+      NA, NA,
+      "Named vector mapping land-cover classes to abbreviations for land-cover product 1 (EOSD)."
+    ),
+    defineParameter(
+      "abbr_land_cover2",
+      "list",
+      c(
+        "1"  = "1-Needle.\nforest",
+        "2"  = "2-Taiga \nneedle.\nforest*",
+        "5"  = "5-Broad.\ndecid.\nforest*",
+        "6"  = "6-Mixed\nforest*",
+        "8"  = "8-Shrub.",
+        "10" = "10-Grass.*",
+        "11" = "Shrubland-\nlichen-moss",
+        "12" = "Sub-polar/polar\ngrassland-\nlichen-moss",
+        "13" = "Sub-polar/polar\nbarren-\nlichen-moss",
+        "14" = "14-Wet.",
+        "15" = "Cropland",
+        "16" = "16-Barren\nlands*",
+        "17" = "17-Urban*",
+        "18" = "18-Water",
+        "19" = "Snow and\nice"
+      ),
+      NA, NA,
+      "Named vector mapping land-cover classes to abbreviations for land-cover product 2 (LCC10)."
+    ),
+    defineParameter(
+      "abbr_land_cover3",
+      "list",
+      c(
+        "1"  = "1-Ever.\nforest",
+        "2"  = "2-Decid.\nforest*",
+        "3"  = "3-Mixed\nforest*",
+        "4"  = "4-Wood.",
+        "5"  = "5-Low\nshrub*",
+        "6"  = "6-Tall\nshrub",
+        "7"  = "7-Open\nshrubs*",
+        "8"  = "8-Herb.*",
+        "9"  = "Tussock\ntundra",
+        "10" = "10-Sparse.\nvegetated",
+        "11" = "11-Fen",
+        "12" = "12-Bog*",
+        "13" = "Shallows/\nLittoral",
+        "14" = "14-Barren*",
+        "15" = "15-Water"
+      ),
+      NA, NA,
+      "Named vector mapping land-cover classes to abbreviations for land-cover product 3 (ABoVE)."
+    ),
+    defineParameter(
+      "abbr_land_cover4",
+      "list",
+      c(
+        "20"  = "20-Water",
+        "31"  = "31-Snow/Ice*",
+        "32"  = "Rock/\nRubble",
+        "33"  = "33-Exp.\nbarren\nland*",
+        "40"  = "40-Bryoids*",
+        "50"  = "50-Shrubs",
+        "80"  = "80-Wet.",
+        "81"  = "81-Wet.-\ntreed*",
+        "100" = "Herbs",
+        "210" = "210-Conif.",
+        "220" = "220-Broad.*",
+        "230" = "230-Mixed.*"
+      ),
+      NA, NA,
+      "Named vector mapping land-cover classes to abbreviations for land-cover product 4 (NTEMS)."
+    ),
+    
+    
+    #SEED
+    #seed parameter for reproducibility of results (e.g., in cross-validation)
+    defineParameter("seed", "numeric", 81, NA, NA,
+                    "seed for reproducibility of results (e.g., in cross-validation)")
+  
+    
+),
+  
+  inputObjects = bindrows(
+    # VEGETATION PLOT DATASET(S)
+    expectsInput(
+      objectName = "dataset_list",
+      objectClass = "list",
+      desc = "Formatted list of plot datasets (cover and/or biomass)",
+      sourceURL = NA
+    ),
+    
+    # STUDY AREA
+    expectsInput(
+      objectName = "study_area_path",
+      objectClass = "character",
+      desc = "Path to study area shapefile used to filter plots",
+      sourceURL = NA
+    ),
+    
+    # LAND COVER PRODUCT(S)
+    expectsInput(
+      objectName = "land_cover1_path",
+      objectClass = "character",
+      desc = "Path to land cover product 1",
+      sourceURL = NA
+    ),
+    expectsInput(
+      objectName = "land_cover2_path",
+      objectClass = "character",
+      desc = "Path to land cover product 2",
+      sourceURL = NA
+    ),
+    expectsInput(
+      objectName = "land_cover3_path",
+      objectClass = "character",
+      desc = "Path to land cover product 3",
+      sourceURL = NA),
+    expectsInput(
+      objectName = "land_cover4_path",
+      objectClass = "character",
+      desc = "Path to land cover product 4",
+      sourceURL = NA),
+    
+    # DISTURBANCE DATA (optional)
+     expectsInput(
+      objectName = "disturbances_path",
+      objectClass = "character",
+      desc = "Path to disturbance shapefile",
+      sourceURL = NA
+    )
+  ),
+  outputObjects = bindrows(
+    #createsOutput("objectName", "objectClass", "output object description", ...),
+    createsOutput(objectName = "dataset_list", objectClass = "list", desc = NA)
+    
+    # N.B.: IMPORTANT OUTPUTS LIKE MAPS WILL BE SAVED AS RASTER FILES IN THE 
+    #       OUTPUT FOLDER, NOT AS R OBJECTS.
+    
+  )
+))
+
+doEvent.gvaMapping = function(sim, eventTime, eventType) {
+  switch(
+    eventType,
+    init = {
+      
+      sim <- Init(sim)
+
+     
+    },
+    
+    warning(noEventWarning(sim))
+  )
+  return(invisible(sim))
+}
+
+
+Init <- function(sim) {
+
+  
+  # SpaDES-managed module output directory
+  module_output_dir <- file.path(sim$base_folder, "outputs")
+  
+  if (!dir.exists(module_output_dir)) {
+    dir.create(module_output_dir, recursive = TRUE)
+  }
+
+    
+################################################################################  
+#####                       STEP1 : Data preparation                      ######
+################################################################################  
+ 
+  # SELECT TARGET GVA AND POOL IT AT THE PLOT LEVEL
+  num_datasets <- length(grep("^dataset\\d+$", ls(sim)))
+  dataset_names <- paste0("dataset", seq_len(num_datasets))
+  sim$dataset_list <- lapply(dataset_names, function(nm) sim[[nm]])
+  names(sim$dataset_list) <- dataset_names
+  
+  sampling_sizes_m2 <- P(sim)[
+    grep("^sampling_size_m2_dataset", names(P(sim)))
+  ] |> unlist()
+  
+  sim$dataset_list <- datasetPreparation(
+    dataset_list      = sim$dataset_list,
+    target_gva        = P(sim)$target_gva,
+    sampling_sizes_m2 = sampling_sizes_m2
+  )
+ 
+
+ 
+ # FILTER PLOTS WITHIN STUDY AREA
+
+ #study_area_path <- sim$study_area_path
+ sim$dataset_list <- filterPlotsStudyArea(sim$dataset_list,
+                                          sim$study_area_path,
+                                          output_dir = file.path(module_output_dir, "filtered_plots_study_area")
+                                          )
+
+
+ # FILTER PLOTS BASED ON DISTURBANCE (OPTIONAL)
+
+ if (file.exists(sim$disturbances_path)) {
+
+   sim$dataset_list <- keepUndisturbedPlots(
+     dataset_list      = sim$dataset_list,
+     disturbances_path = sim$disturbances_path,
+     land_cover_year   = P(sim)$land_cover_year,
+     output_dir = file.path(module_output_dir, "filtered_plots_undisturbed")
+     )
+
+ } else {
+   cat("⚠️ skipping disturbance analysis\n")
+ }
+
+
+ # GIS OPERATIONS
+
+ # Land cover path list
+ # --- Determine the number of land cover paths dynamically
+ num_land_cover <- length(grep("^land_cover\\d+_path$", ls(sim)))
+ cat("Detected", num_land_cover, "land cover path variable(s).\n")
+
+ # --- Generate a vector of land cover path names
+ land_cover_path_names <- paste0("land_cover", 1:num_land_cover, "_path")
+ cat("Land cover path variable names:", paste(land_cover_path_names, collapse = ", "), "\n")
+
+ # --- Retrieve land cover paths by their names and store them in a list
+ land_cover_paths <- mget(land_cover_path_names, envir = as.environment(sim))
+ cat("Land cover paths:", paste(unlist(land_cover_paths), collapse = ", "), "\n")
+
+
+
+ #Land cover name list
+ # --- Determine the number of datasets dynamically
+
+ # SEARCH FOR LAND COVER NAME VARIABLES IN THE SIM ENVIRONMENT
+
+ num_name_land_cover <- length(grep("^name_land_cover\\d+$", ls(P(sim))))
+ cat("Detected", num_name_land_cover, "land cover name variable(s).\n")
+
+ # --- Generate a vector of dataset names
+ land_cover_names <- paste0("name_land_cover", 1:num_name_land_cover)
+ cat("Land cover name variable names:", paste(land_cover_names, collapse = ", "), "\n")
+
+ # --- Retrieve datasets by their names and store them in a list
+ list_of_land_cover_names <- lapply(land_cover_names, function(nm) P(sim)[[nm]])
+ cat("Land cover names:", paste(unlist(list_of_land_cover_names), collapse = ", "), "\n")
+
+
+ ## CROP LAND COVER PRODUCTS TO STUDY AREA
+
+ #  directory for cropped land cover products
+ cropped_lc_dir <- file.path(module_output_dir, "cropped_land_cover_products")
+ missing_names <- vector()
+ for (lc_name in list_of_land_cover_names) {
+   # pattern for this land cover (any X)
+   pattern <- paste0("cropped_land_cover\\d+_", lc_name, "\\.tif$")
+
+   # see if any file exists
+   if (length(list.files(cropped_lc_dir, pattern = pattern, full.names = TRUE)) == 0) {
+     missing_names <- c(missing_names, lc_name)
+   }
+ }
+
+ if (length(missing_names) > 0) {
+   message("🪓 Missing cropped rasters for: ", paste(missing_names, collapse = ", "),
+           " — cropping them...")
+
+   cropLandCoverProduct(
+     study_area_path = sim$study_area_path,
+     land_cover_paths = land_cover_paths,
+     list_of_land_cover_names = missing_names,
+     output_dir = cropped_lc_dir
+
+   )
+ } else {
+   message("✅ All cropped land cover rasters already exist — skipping cropping step.")
+ }
+
+ 
+ ## CLASS PROPORTIONS PER LAND COVER PRODUCT
+ # function that determines class size (i.e, number of pixels as proxy) and proportion per land cover product
+ #class_proportions_path <- file.path(base_folder, "outputs", "class_proportions.rds") ## CHANGE FOLDER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!<<<
+
+
+ class_prop_file <- file.path(module_output_dir, "class_proportions", "class_proportions.rds")
+
+ if (file.exists(class_prop_file)) {
+   message("✅ 'class_proportions.rds' found — loading existing object...")
+   sim$class_proportions_list <- readRDS(class_prop_file)
+ } else {
+   message("⚙️  'class_proportions.rds' not found — computing class proportions...")
+   sim$class_proportions_list <- computeClassProportions(
+     output_dir_in  = cropped_lc_dir,
+     output_dir_out = file.path(module_output_dir, "class_proportions")
+   )
+ }
+
+
+ # CLASSES EXTRACTION FROM LAND COVER PRODUCT(S) AT PLOT LOCATIONS
+ sim$dataset_list <- extractPlotLCC_from_folder(
+   output_dir_in  = file.path(module_output_dir, "cropped_land_cover_products"),
+   dataset_list   = sim$dataset_list,
+   output_dir_out = file.path(module_output_dir, "datasets_with_lc_classes")
+ )
+
+################################################################################
+#####    STEP2 : Computation of class-means and statistical summaries     ######
+################################################################################
+
+ # weighted mean and RSE per land cover class per land cover product
+ sim$weighted_mean_results <- weightedMeanPerLandCover(
+   dataset_list             = sim$dataset_list,
+   list_of_land_cover_names = list_of_land_cover_names,
+   class_proportions_list   = sim$class_proportions_list,
+   output_dir               = file.path(module_output_dir, "weighted_mean_per_lcc_results"),
+   measure_class            = P(sim)$measure_class,
+   measure_name             = P(sim)$measure_name,
+   unit                     = P(sim)$unit
+ )
+
+
+ #CLASS PROPORTION PIE CHARTS
+ #  INNAPLICABLE CLASSES LIST
+  # Determine the number of water class objects
+  num_inapplicable_classes <- length(grep("^inapplicable_classes_land_cover\\d+$", names(P(sim))))
+  cat("Detected", num_inapplicable_classes, "LC products with inapplicable class(es).\n")
+
+  # Generate a vector of water class objects
+  inapplicable_classes_values <- paste0("inapplicable_classes_land_cover", seq_len(num_inapplicable_classes))
+  cat(paste(inapplicable_classes_values, collapse = ", "), "\n")
+
+  # Retrieve water classes by their names and store them in a list
+  inapplicable_classes_list <- lapply(inapplicable_classes_values, function(nm) P(sim)[[nm]])
+  names(inapplicable_classes_list) <- inapplicable_classes_values
+  inapplicable_classes_list
+ 
+  # create water_classes_list
+ # Determine the number of water class objects
+ num_water_classes <- length(grep("^water_class_land_cover\\d+$", names(P(sim))))
+ cat("Detected", num_water_classes, "LC products with water class(es).\n")
+ 
+ # Generate a vector of water class objects
+ water_classes_values <- paste0("water_class_land_cover", seq_len(num_water_classes))
+ cat(paste(water_classes_values, collapse = ", "), "\n")
+ 
+ # Retrieve water classes by their names and store them in a list
+ water_classes_list <- lapply(water_classes_values, function(nm) P(sim)[[nm]])
+ names(water_classes_list) <- water_classes_values
+ water_classes_list
+ 
+ sim$color_mapping_list <- get_color_mapping_per_product(
+   weighted_mean_results = sim$weighted_mean_results,
+   water_classes_list = water_classes_list
+ )
+ 
+classProportionChart(
+  weighted_mean_results = sim$weighted_mean_results,
+  class_proportions_list = sim$class_proportions_list,
+  list_of_land_cover_names = list_of_land_cover_names,
+  water_classes_list = water_classes_list,
+  color_mapping_list = sim$color_mapping_list,
+  threshold = 5.5,
+  output_dir = file.path(
+    module_output_dir,
+    "figures",
+    "pie_charts"
+  )
+)
+ 
+ 
+ #CLASS-MEAN BAR PLOTS
+ 
+ abbr_param_names <- grep(
+   "^abbr_land_cover\\d+$",
+   names(P(sim)),
+   value = TRUE
+ )
+ 
+ cat("Detected", length(abbr_param_names), "abbreviation tables:\n")
+ cat(paste(abbr_param_names, collapse = ", "), "\n")
+ 
+ abbrev_list <- lapply(
+   abbr_param_names,
+   function(nm) P(sim)[[nm]]
+ )
+ 
+ names(abbrev_list) <- abbr_param_names
+ 
+ # ------------------------------------------------------------
+ # Sanity checks
+ # ------------------------------------------------------------
+ stopifnot(
+   length(abbrev_list) == length(list_of_land_cover_names),
+   length(abbrev_list) == length(sim$weighted_mean_results),
+   length(abbrev_list) == length(water_classes_list),
+   length(abbrev_list) == length(inapplicable_classes_list)
+ )
+ 
+ # ------------------------------------------------------------
+ # Create biomass bar plots
+ # ------------------------------------------------------------
+ createBarplots(
+   weighted_mean_results     = sim$weighted_mean_results,
+   list_of_land_cover_names  = list_of_land_cover_names,
+   water_classes_list        = water_classes_list,
+   inapplicable_classes_list = inapplicable_classes_list,
+   color_mapping_list        = sim$color_mapping_list,
+   abbrev_list               = abbrev_list,
+   measure_name              = P(sim)$measure_name,
+   unit                      = P(sim)$unit,
+   output_dir = file.path(module_output_dir, "figures", "barplots")
+ )
+ 
+ 
+ 
+ 
+################################################################################
+#####                     STEP3 : Map(s) generation                       ######
+################################################################################
+
+
+ # Directory where gva rasters are stored
+ gva_raster_dir <- file.path(module_output_dir, "gva_rasters")
+ # Check which land cover gva rasters are missing
+ missing_gva_raster <- vector()
+ for (lc_name in list_of_land_cover_names) {
+   # pattern for this land cover (any X)
+   pattern <- paste0("land_cover\\d+_", lc_name, "\\.tif$")
+   # see if any file exists
+   if (length(list.files(gva_raster_dir, pattern = pattern, full.names = TRUE)) == 0) {
+     missing_gva_raster <- c(missing_gva_raster, lc_name)
+   }
+ }
+ # Run conversion only for missing gva rasters
+ if (length(missing_gva_raster) > 0) {
+   message("🪓 Missing gva rasters for: ", paste(missing_gva_raster, collapse = ", "),
+           " — converting land cover to gva...")
+
+   convertCroppedLandCoverToGVAMap(
+     output_dir_in  = file.path(module_output_dir, "cropped_land_cover_products"),
+     output_dir_out = gva_raster_dir,
+     weighted_mean_results = sim$weighted_mean_results,
+     inapplicable_classes_list = inapplicable_classes_list,
+     list_of_land_cover_names = list_of_land_cover_names
+   )
+
+ } else {
+   message("✅ All GVA rasters already exist — skipping conversion step.")
+ }
+
+
+ # GVA MAPS ALIGNMENT (if multiple land cover products are used)
+
+ gva_paths <- list.files(
+   gva_raster_dir,
+   pattern = "\\.tif$",
+   full.names = TRUE
+ )
+
+ num_gva_rasters <- length(gva_paths)
+
+ cat("Detected", num_gva_rasters, "GVA raster(s).\n")
+
+ if (num_gva_rasters <= 1) {
+
+   message(
+     "✅ Only ",
+     num_gva_rasters,
+     " GVA raster detected — alignment not required."
+   )
+
+ } else {
+
+
+ # Directory where aligned biomass rasters are stored
+ aligned_raster_dir <- file.path(module_output_dir, "aligned_gva_rasters")
+ # Check which aligned rasters are missing
+ missing_aligned_raster <- vector()
+ for (lc_name in list_of_land_cover_names) {
+   # pattern for this land cover (any X)
+   pattern <- paste0("aligned_gva_raster_land_cover\\d+_", lc_name, "\\.tif$")
+   # see if any file exists
+   if (length(list.files(aligned_raster_dir, pattern = pattern, full.names = TRUE)) == 0) {
+     missing_aligned_raster <- c(missing_aligned_raster, lc_name)
+   }
+ }
+ # Run alignment only for missing rasters
+ if (length(missing_aligned_raster) > 0) {
+   message("🪓 Missing aligned gva rasters for: ", paste(missing_aligned_raster, collapse = ", "),
+           " — aligning gva rasters...")
+
+   alignGVARasters(
+     output_dir_in  = file.path(module_output_dir, "gva_rasters"),
+     output_dir_out = aligned_raster_dir,
+     study_area_path = sim$study_area_path,
+     list_of_land_cover_names = list_of_land_cover_names
+   )
+
+ } else {
+   message("✅ All aligned GVA rasters already exist — skipping alignment step.")
+ }
+
+}
+
+################################################################################
+#####           STEP4 : 10-FOLD CROSS-VALIDATION - GVA RASTERS            ######
+################################################################################
+
+ sim$smape_results <- runGVARastersKFoldCrossValidation(
+   dataset_list = sim$dataset_list,
+   class_proportions_list = sim$class_proportions_list,
+   list_of_land_cover_names = list_of_land_cover_names,
+   inapplicable_classes_list = inapplicable_classes_list,
+   seed = P(sim)$seed,
+   n_folds = 10,
+   min_plots_per_class = 1,
+   sample_fraction = 0.7,
+   output_dir_fold = file.path(module_output_dir, "cross_validation_results", "folds"),
+   output_dir_cropped = file.path(module_output_dir, "cropped_land_cover_products"),
+   output_dir_out = file.path(module_output_dir, "cross_validation_results"),
+   measure_class = P(sim)$measure_class,
+   measure_name = P(sim)$measure_name,
+   unit = P(sim)$unit
+)
+
+
+ ################################################################################
+ #####     STEP5 : ENSEMBLE AND UNCERTAINTY MAPS (if > 1 lc product)       ######
+ ################################################################################
+
+ if (length(list_of_land_cover_names) > 1) {
+
+ smape_results <- sim$smape_results
+ cat("\n Ensemble raster inputs preparation:\n")
+ raster_dir = aligned_raster_dir
+ output_dir_out = file.path(module_output_dir, "gva_rasters")
+
+ # --- Detect environment and set cores ---
+ if (nzchar(Sys.getenv("SLURM_JOB_ID"))) {
+   ncores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", unset = 1))
+   cat(sprintf("  Detected SLURM environment: using %d cores\n", ncores))
+ } else {
+   ncores <- max(1, parallel::detectCores() - 1)
+   cat(sprintf("  Detected local environment: using %d cores\n", ncores))
+ }
+ flush.console()
+
+ # --- Ensure ensemble map output folder exists ---
+ if (!dir.exists(output_dir_out)) {
+   dir.create(output_dir_out, recursive = TRUE)
+   cat("Created ensemble map folder:", output_dir_out, "\n")
+ } else {
+   cat("ℹ️ Ensemble map folder already exists:", output_dir_out, "\n")
+ }
+
+ # --- Load all rasters ---
+ raster_files <- list.files(raster_dir, pattern = "\\.tif$", full.names = TRUE)
+ if (length(raster_files) == 0) stop("No raster files found in: ", raster_dir)
+
+ message("✅ Loading ", length(raster_files), " rasters from ", raster_dir)
+ aligned_gva_rasters <- lapply(raster_files, terra::rast)
+ raster_names <- tools::file_path_sans_ext(basename(raster_files))
+ names(aligned_gva_rasters) <- raster_names
+
+ # --- Stack rasters ---
+ rasters_stack <- terra::rast(aligned_gva_rasters)
+
+ # ### NEW: Use SMAPE for weights
+ smape_values <- smape_results$SMAPE
+ names(smape_values) <- raster_names
+
+ # # Remove NA or zero SMAPE to avoid division by zero
+ valid_idx <- which(!is.na(smape_values) & smape_values > 0) # <-- NEW
+
+
+ if (length(valid_idx) == 0) {
+   stop("No rasters with valid SMAPE found for ensemble weighting.")
+ }
+
+ ### Compute inverse-squared SMAPE weights <== SMAPE
+ inv_sq_smape <- 1 / (smape_values[valid_idx]^2)
+ weights <- inv_sq_smape / sum(inv_sq_smape)
+
+ # ------------------------------------------------------------
+ # filter rasters with more than 10% weight
+ # ------------------------------------------------------------
+ keep_idx <- which(weights > 0.10)
+
+ if (length(keep_idx) == 0) {
+   stop("No rasters have weights > 10%.")
+ }
+
+ # Keep only rasters above 10% weight
+ rasters_stack_valid <- rasters_stack[[valid_idx]][[keep_idx]]
+ weights <- weights[keep_idx]
+ weights <- weights / sum(weights)   # <---- IMPORTANT
+
+ smape_values <- smape_values[valid_idx][keep_idx]
+
+ # Rename after filtering
+ names(weights) <- names(rasters_stack_valid)
+ # ------------------------------------------------------------
+
+ # Print summary table
+ cat("\n📊 Using the following rasters for ensemble:\n")
+ print(data.frame(Raster = names(weights),
+                  SMAPE = round(smape_values, 4),
+                  Weight = round(weights, 4)))
+ cat("\n")
+
+
+ # Combine all plots into one data.frame
+ df_plots <- do.call(rbind, sim$dataset_list)
+ df_plots <- df_plots[!duplicated(df_plots$plotID), ]
+
+ # Convert plots to SpatVector and project to raster CRS
+ plot_pts <- terra::vect(df_plots, geom = c("longitude", "latitude"), crs = "EPSG:4326")
+ plot_pts <- terra::project(plot_pts, crs(rasters_stack_valid))
+
+ # Extract values from all rasters involved in the ensemble
+ pred_matrix <- terra::extract(rasters_stack_valid, plot_pts)[, -1]  # drop ID column
+
+ # Compute weighted ensemble prediction for each plot point
+ ensemble_pred <- apply(pred_matrix, 1, function(x) {
+   ok <- !is.na(x)
+   if (!any(ok)) return(NA)
+   sum(x[ok] * weights[ok]) / sum(weights[ok])
+ })
+
+ # --- Create template raster filled with NA ---
+ template <- rasters_stack_valid[[1]]
+ template[] <- NA
+
+ # Get cell numbers for each plot location
+ plot_cells <- terra::cellFromXY(template, terra::geom(plot_pts)[, c("x", "y")])
+
+ # Fill only those cells with ensemble predictions
+ template[plot_cells] <- ensemble_pred
+
+ # create folder for sparse raster if it doesn't exist
+ sparse_raster_dir <- file.path(module_output_dir, "cross_validation_results", "folds", "ensemble_raster_sparse")
+ if (!dir.exists(sparse_raster_dir)) {
+   dir.create(sparse_raster_dir, recursive = TRUE)
+   cat("Created folder for sparse ensemble raster:", sparse_raster_dir, "\n")
+ } else {
+   cat("ℹ️ Folder for sparse ensemble raster already exists:", sparse_raster_dir, "\n")
+ }
+
+ # Save sparse raster
+ terra::writeRaster(
+   template,
+   filename = file.path(sparse_raster_dir, "ensemble_raster_sparse.tif"),
+   overwrite = TRUE
+ )
+
+ message("\n🎯 Ensemble raster created (only plot pixels have values for validation)\n")
+
+
+
+ # ------------------------------------------------------------
+ # 10-FOLD CROSS-VALIDATION - ENSEMBLE MAP
+ # ------------------------------------------------------------
+ sim$ensemble_mean_SMAPE <- runEnsembleKFoldCrossValidation(
+   dataset_list = sim$dataset_list,
+   output_dir_in = sparse_raster_dir,
+   output_dir_out = file.path(module_output_dir, "cross_validation_results"),
+   seed = P(sim)$seed,
+   n_folds = 10,
+   holdout_ratio = 0.3
+ )
+
+ #RESAMPLE ALIGNED GVA RASTER TO 250 FOR VISUALIZATION
+ ################################################################################
+ ##### STEP : RESAMPLE ALIGNED GVA RASTERS TO 250 m (FOR VISUALIZATION)
+ ################################################################################
+
+ message("\n🗺 Resampling aligned GVA rasters to 250 m for visualization...")
+
+ # Input: full-resolution aligned GVA rasters
+ aligned_gva_dir <- file.path(module_output_dir, "aligned_gva_rasters")
+
+ # Output: 250 m visualization rasters
+ visual_gva_dir <- file.path(module_output_dir, "aligned_gva_rasters_250m")
+ dir.create(visual_gva_dir, recursive = TRUE, showWarnings = FALSE)
+
+ # List aligned GVA rasters
+ gva_files <- list.files(
+   aligned_gva_dir,
+   pattern = "\\.tif$",
+   full.names = TRUE
+ )
+
+ # Expected 250 m filenames
+ gva_files_250m <- file.path(
+   visual_gva_dir,
+   paste0("250m_", basename(gva_files))
+ )
+
+ # Only resample if missing
+ if (!all(file.exists(gva_files_250m))) {
+
+   message("🔄 Creating 250 m GVA rasters (mean aggregation)...")
+
+   for (i in seq_along(gva_files)) {
+
+     gva_r <- terra::rast(gva_files[i])
+
+     # Compute aggregation factor
+     # Assumes original raster is in meters and resolution divides 250 exactly
+     fact <- round(250 / terra::res(gva_r)[1])
+
+     if (fact < 1) {
+       stop("Original raster resolution is already coarser than 250 m.")
+     }
+
+     # Aggregate (mean for continuous variables)
+     gva_250 <- terra::aggregate(
+       gva_r,
+       fact = fact,
+       fun = mean,
+       na.rm = TRUE
+     )
+
+     terra::writeRaster(
+       gva_250,
+       gva_files_250m[i],
+       overwrite = TRUE,
+       wopt = list(gdal = c("COMPRESS=DEFLATE", "TILED=YES"))
+     )
+   }
+
+
+   message("✅ 250 m visualization rasters created.")
+
+ } else {
+
+   message("✅ 250 m visualization rasters already exist — skipping.")
+ }
+
+ gva_250m_files <- gva_files_250m
+
+ ################################################################################
+ ##### WALL-TO-WALL ENSEMBLE RASTER (250 m, for visualization)
+ ################################################################################
+
+ ensemble_full_dir <- file.path(module_output_dir, "ensemble")
+ dir.create(ensemble_full_dir, recursive = TRUE, showWarnings = FALSE)
+
+ ensemble_full_path <- file.path(
+   ensemble_full_dir,
+   "full_ensemble_gva_250m.tif"
+ )
+
+ if (!file.exists(ensemble_full_path)) {
+
+   message("🧮 Computing 250 m visualization ensemble from aggregated products")
+
+   # ✅ gva_250m_files must exist at this point
+   rasters_stack_250m <- terra::rast(gva_250m_files)
+
+   #stopifnot(all(names(rasters_stack_250m) %in% names(weights)))
+
+   weights_250 <- weights
+   #weights_250 <- weights[names(rasters_stack_250m)]
+   #weights_250 <- weights_250 / sum(weights_250)
+
+   ensemble_raster_250m <- terra::app(
+     rasters_stack_250m,
+     fun = function(x) {
+       ok <- !is.na(x)
+       if (!any(ok)) return(NA_real_)
+       sum(x[ok] * weights_250[ok]) / sum(weights_250[ok])
+     }
+   )
+
+   names(ensemble_raster_250m) <- "ensemble_gva"
+
+   terra::writeRaster(
+     ensemble_raster_250m,
+     ensemble_full_path,
+     overwrite = TRUE,
+     wopt = list(gdal = c("COMPRESS=DEFLATE", "TILED=YES"))
+   )
+
+   message("✅ 250 m ensemble raster created")
+
+ } else {
+   message("✅ 250 m ensemble raster already exists — skipping")
+ }
+
+ ################################################################################
+ #####          CV RASTER
+ ################################################################################
+
+ message("\n📉 Creating CV raster...")
+
+
+   #--------------------------------------------------
+   # Input: aligned rasters (same extent / resolution)
+   #--------------------------------------------------
+ input_raster_dir <- visual_gva_dir #aligned_raster_dir #for 250m CV raster
+
+ # List aligned raster files
+ raster_files <- list.files(
+   input_raster_dir,
+   pattern = "\\.tif$",
+   full.names = TRUE
+ )
+
+ # Build list of SpatRaster objects
+ weighted_mean_raster <- lapply(raster_files, terra::rast)
+
+ #--------------------------------------------------
+ # Output directory
+ #--------------------------------------------------
+ cv_raster_dir <- file.path(
+   module_output_dir,
+   "cv_raster"
+ )
+ dir.create(cv_raster_dir, recursive = TRUE, showWarnings = FALSE)
+
+ #--------------------------------------------------
+ # Convert list → SpatRaster stack (INTENTIONAL)
+ # Required because terra::stdev() and mean()
+ # do not operate on lists
+ #--------------------------------------------------
+ gva_stack <- terra::rast(weighted_mean_raster)
+
+ #--------------------------------------------------
+ # Compute CV = sd / mean (block-wise, disk-backed)
+ #--------------------------------------------------
+ cv_raster <- terra::stdev(gva_stack, na.rm = TRUE) /
+   terra::mean (gva_stack,  na.rm = TRUE)
+
+ names(cv_raster) <- "cv"
+
+ #--------------------------------------------------
+ # Save CV raster to disk
+ #--------------------------------------------------
+ cv_raster_path <- file.path(
+   cv_raster_dir,
+   "cv_raster.tif"
+ )
+
+ terra::writeRaster(
+   cv_raster,
+   cv_raster_path,
+   overwrite = TRUE,
+   wopt = list(
+     gdal = c("COMPRESS=DEFLATE", "TILED=YES")
+   )
+ )
+
+ message("✅ CV raster saved:\n  ", cv_raster_path)
+
+ #--------------------------------------------------
+ # Store only the path (no raster kept in memory)
+ #--------------------------------------------------
+ sim$cv_raster_path <- cv_raster_path
+
+
+
+ } else {
+   message("Ensemble and CV map skipped: only one land-cover product available")
+ }
+
+
+
+
+
+ # Store path (optional, useful downstream)
+ sim$gva_rasters_250m_dir <- visual_gva_dir
+
+  ################################################################################
+ ##### STEP X : VISUALIZATION — 250 m GVA MAPS
+ ################################################################################
+
+ message("\n🗺 Plotting 250 m GVA rasters...")
+
+ # ------------------------------------------------------------------
+ # Directories
+ # ------------------------------------------------------------------
+ visual_gva_dir <- file.path(module_output_dir, "aligned_gva_rasters_250m")
+
+ ensemble_full_dir <- file.path(module_output_dir, "ensemble")
+ ensemble_full_path <- file.path(
+   ensemble_full_dir,
+   "full_ensemble_gva_250m.tif"
+ )
+
+ fig_dir <- file.path(module_output_dir, "figures")
+ dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
+ # ------------------------------------------------------------------
+ # List aligned 250 m individual GVA rasters
+ # ------------------------------------------------------------------
+ gva_250m_files <- list.files(
+   visual_gva_dir,
+   pattern = "\\.tif$",
+   full.names = TRUE
+ )
+
+ if (length(gva_250m_files) == 0) {
+   stop("❌ No 250 m aligned GVA rasters found in: ", visual_gva_dir)
+ }
+
+ # ------------------------------------------------------------------
+ # Build colour-scale rasters (include ensemble ONLY if it exists)
+ # ------------------------------------------------------------------
+ if (file.exists(ensemble_full_path)) {
+   scale_rasters <- c(gva_250m_files, ensemble_full_path)
+   message("ℹ️ Ensemble raster found — including it with individual GVA rasters.")
+ } else {
+   scale_rasters <- gva_250m_files
+   message("ℹ️ Ensemble raster not found — using only individual GVA rasters")
+ }
+
+ # ------------------------------------------------------------------
+ # Plot each individual GVA raster
+ # ------------------------------------------------------------------
+ for (r_path in gva_250m_files) {
+
+   raster_name <- tools::file_path_sans_ext(basename(r_path))
+
+   output_png <- file.path(
+     fig_dir,
+     paste0("map_", raster_name, ".png")
+   )
+
+   plotGVA250m(
+     raster_to_plot        = r_path,
+     raster_list_for_scale = scale_rasters,
+     study_area_path       = sim$study_area_path,
+     water_raster_path     = sim$water_raster_path,
+     output_path           = output_png,
+     title                 = raster_name,
+     measure_name          = P(sim)$measure_name,
+     unit                  = P(sim)$unit
+   )
+ }
+
+ # ------------------------------------------------------------------
+ # Plot ensemble raster ONLY if it exists
+ # ------------------------------------------------------------------
+ if (file.exists(ensemble_full_path)) {
+
+
+   plotGVA250m(
+     raster_to_plot        = ensemble_full_path,
+     raster_list_for_scale = scale_rasters,
+     study_area_path       = sim$study_area_path,
+     water_raster_path     = sim$water_raster_path,
+     output_path           = file.path(fig_dir, "map_ensemble_gva_250m.png"),
+     title                 = "Ensemble GVA",
+     measure_name          = P(sim)$measure_name,
+     unit                  = P(sim)$unit
+   )
+
+ }
+
+ message("✅ All available GVA maps plotted successfully.\n")
+
+ #plot CV RASTER
+ message("Plotting CV map....\n")
+ plotCV250m(
+   cv_raster_path     = sim$cv_raster_path,
+   study_area_path    = sim$study_area_path,
+   water_raster_path  = sim$water_raster_path,
+   output_path        = file.path(fig_dir, "map_cv_gva_250m.png"),
+   split_cv           = 0.2,
+   title              = "Coefficient of Variation (250 m)"
+ )
+
+#MAYBE INCLUDE LAND COVER NAMES AS PARAMETERS
+
+
+ 
+  return(invisible(sim))
+}
+  
+
+## ENABLE THE .inputObjects below and add input data paths to the sim object. 
+# This is where you can specify the paths to your input datasets, study area shapefile, land cover products, 
+# and disturbance data. Make sure to replace the placeholder paths with the actual paths to your data files.
+
+# .inputObjects <- function(sim) {
+
+ ###############################################################################
+ ##########                    MODULE INPUTS                        ############
+ ###############################################################################
+#   #plot datasets
+#   sim$dataset1  <- "...path to dataset1.csv..."                      # (csv format)
+#   #sim$dataset2 <- "...path to dataset2.csv..."                      # (csv format)
+#   
+
+#   #study area
+#   sim$study_area_path <- "...path to study_area.shp shapefile..."    # (shp format)
+#   
+#   #land cover products
+#   sim$land_cover1_path <- "...path to land_cover1.tif raster..."     #(tif format)
+#   #sim$land_cover2_path <- "...path to land_cover2.tif raster..."    #(tif format)
+#   #sim$land_cover3_path <- "...path to land_cover3.tif raster..."    #(tif format)
+#   
+#   #disturbances
+#   sim$disturbances_path <- "...path to disturbance.shp shapefile..." #(shp format)
+#   
+#   
+#   return(invisible(sim))
+# }
+
+
+
+
+.inputObjects <- function(sim) {
+  
+  sim$base_folder <- "C:/Users/ANCAG6/OneDrive - Université Laval/LICHEN_project/paper1/SpaDES_version/gvaMapping"
+  base_folder <- sim$base_folder
+  
+  ###############################################################################
+  ##########        COVER AND BIOMASS DATASETS PREPROCESSING         ############
+  ###############################################################################
+  
+  # COVER datasets
+  sim$raw_dataset1A <- file.path(base_folder, "data", "plot_datasets", "cover_datasets", 
+                                 "cover_dataset1 - Baltzer et al",
+                                 "Chronosequence quadrat covers_2016_2017_2018_2019-02-11.v2.csv") #GET LINK
+  
+  sim$raw_dataset1B <- file.path(base_folder, "data", "plot_datasets", "cover_datasets",
+                                 "cover_dataset1 - Baltzer et al",
+                                 "All site info 2019-10-16.csv") #GET LINK
+  
+  sim$raw_dataset2A <- file.path(base_folder, "data", "plot_datasets", "cover_datasets",
+                                 "cover_dataset2 - Errington et al",
+                                 "lichen dataset for Andres.xlsx")
+  
+  sim$raw_dataset2B <- sim$raw_dataset2A
+  
+  sim$raw_dataset3A <- file.path(base_folder, "data", "plot_datasets", "cover_datasets",
+                                 "cover_dataset3 - NFI",
+                                 "all_gp_ecp_species.csv")
+  
+  sim$raw_dataset3B <- file.path(base_folder, "data", "plot_datasets", "cover_datasets",
+                                 "cover_dataset3 - NFI",
+                                 "all_gp_site_info_approx_loc.csv")
+  
+  # BIOMASS datasets
+  sim$raw2_dataset1A <- file.path(base_folder, "data", "plot_datasets", "biomass_datasets",
+                                  "biomass_dataset1 - Cook et al",
+                                  "ForageBiomass_NWT_20162019.xlsx")
+  
+  sim$raw2_dataset1B <- file.path(base_folder, "data", "plot_datasets", "biomass_datasets",
+                                  "biomass_dataset1 - Cook et al",
+                                  "PenCharacteristics_NWTCaribou_Location fixes added_red__FM_for Genev_Mar 2022.xlsx") 
+  
+  sim$raw2_dataset2A <- file.path(base_folder, "data", "plot_datasets", "biomass_datasets",
+                                  "biomass_dataset2 - LGL",
+                                  "EA3922 Lichen Plot Data_ALL YEARS_SUMMARY BIOMASS three ways.xlsx") #GET LINK
+  
+  # sampling size for each dataset to weight mean calculation - in m2
+  sim$sampling_size_m2_raw_dataset1 <- P(sim)$sampling_size_m2_dataset1 #1 #cover biomass dataset 1
+  sim$sampling_size_m2_raw_dataset2 <- P(sim)$sampling_size_m2_dataset2 #1 #cover biomass dataset 2
+  sim$sampling_size_m2_raw_dataset3 <- P(sim)$sampling_size_m2_dataset3 #100 #cover biomass dataset 3
+  sim$sampling_size_m2_raw2_dataset1 <- P(sim)$sampling_size_m2_dataset4 #2  #raw biomass dataset 1
+  sim$sampling_size_m2_raw2_dataset2 <- P(sim)$sampling_size_m2_dataset5 #0.25 #raw biomass dataset 2
+  
+  
+  sim$sampling_type_names_raw_dataset <- grep("^sampling_size_m2_raw_dataset\\d+$",ls(envir = sim), value = TRUE)
+  
+  sim$sampling_types_raw_dataset <- mget(sim$sampling_type_names_raw_dataset, envir = as.environment(sim))
+  
+  cat(
+    "Sampling size variables detected:",
+    paste(sim$sampling_type_names_raw_dataset, collapse = ", "),
+    "\n"
+  )
+  
+  # COVER AND BIOMASS PLOT DATASETS CLEANING AND PREPARATION
+  
+  dataset_list <- setNames(
+    lapply(c("raw", "raw2"), function(type) {
+      # Automatically detect datasets and validate existence of functions/inputs
+      X_vals <- autoDetectDatasets(sim, type)
+      
+      if (length(X_vals)) {
+        setNames(
+          lapply(X_vals, function(x) datasetLoadORPrep(sim, type, x)),
+          paste0(type, "_dataset", X_vals)
+        )
+      }
+    }),
+    c("raw_dataset_list", "raw2_dataset_list")
+  )
+  
+  
+  # CONVERT COVER INTO BIOMASS (for cover datasets)
+  
+  if (!is.null(dataset_list$raw_dataset_list) &&
+      length(dataset_list$raw_dataset_list) > 0) {
+    
+    dataset_list$raw_dataset_list <- convertCoverToBiomass(
+      dataset_list$raw_dataset_list,
+      sim$sampling_types_raw_dataset
+    )
+  }
+  
+
+  dataset_list <- unlist(dataset_list, recursive = FALSE)
+  
+  dataset_list <- lapply(dataset_list, function(df) {
+    df %>%
+      rename(
+        gva = species,
+        measure_quad = biomass_dens_quad,
+      )  %>%
+      select(
+       -biomass_quad,
+       -sampling_size_ha
+     )
+  })
+  
+ 
+    
+  ###############################################################################
+  ##########                    MODULE INPUTS                        ############
+  ###############################################################################
+  
+  
+  # PLOT DATASETS
+  sim$dataset1 <- dataset_list[[1]]
+  sim$dataset2 <- dataset_list[[2]]
+  sim$dataset3 <- dataset_list[[3]]
+  sim$dataset4 <- dataset_list[[4]]
+  sim$dataset5 <- dataset_list[[5]]
+  
+ 
+  # STUDY AREA
+  sim$study_area_path <- file.path(base_folder, "data", "study_area", "southernNWT_Wekeezhii.shp")  #GET LINK AND FILTER STUDY AREA IN THE FUNCTION IN CASE OF PROBLEMS WITH THE SHAPEFILE
+  
+  # LAND COVER PRODUCT(S)
+  sim$land_cover1_path <- file.path(base_folder, "data", "land_cover_products", "southernNWT_Wekeezhii_mvi.tif") #NO LINK
+  sim$land_cover2_path <- file.path(base_folder, "data", "land_cover_products", "southernNWT_Wekeezhii_lcc10.tif") #GET LINK
+  sim$land_cover3_path <- file.path(base_folder, "data", "land_cover_products", "southernNWT_Wekeezhii_ABoVE.tif") #GET LINK FROM ALL TILES AND PROCESS THEM HERE
+  sim$land_cover4_path <- file.path(base_folder, "data", "land_cover_products", "southernNWT_Wekeezhii_ntems.tif") #GET LINK
+  
+  # DISTURBANCES (optional)
+  sim$disturbances_path <- file.path(base_folder, "data", "disturbances_(optional)", "NFDB_poly_20210707.shp") #GET LINK
+  
+  
+  #water layer for maps
+  sim$water_raster_path <- file.path(base_folder, "data", "water_union_250m.tif")
+    
+  return(invisible(sim))
+}
+
+
+
