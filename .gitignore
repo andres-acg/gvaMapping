@@ -4,4 +4,13 @@
 .Ruserdata
 .positai
 
-outputs/*
+outputs
+inputs
+cache
+*.gif
+*.tif
+*.zip
+*.Rprofile
+*.Rhistory
+CHECKSUMS.txt
+*.rds

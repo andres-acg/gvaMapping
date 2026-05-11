@@ -43,7 +43,7 @@ rawDataset1LoadORPrep <- function(formatted_dataset = NULL,
   df_site  <- read.csv2(raw_datasetB, header = TRUE, sep = ";")
   
   df_clean <- df_cover %>%
-    left_join(df_site %>% select(plot, Lat_start, Long_start, date), by = "plot") %>%
+    left_join(df_site %>% dplyr::select(plot, Lat_start, Long_start, date), by = "plot") %>%
     rename(
       plotID   = plot,
       quadID   = plot.quadrat,
@@ -52,7 +52,7 @@ rawDataset1LoadORPrep <- function(formatted_dataset = NULL,
       longitude = Long_start,
       sample_date = date
     ) %>%
-    select(plotID, quadID, species, percent, latitude, longitude, sample_date)
+    dplyr::select(plotID, quadID, species, percent, latitude, longitude, sample_date)
   
   #standardize data
   df_clean$sample_date <- lubridate::ymd(df_clean$sample_date)
@@ -64,493 +64,493 @@ rawDataset1LoadORPrep <- function(formatted_dataset = NULL,
 
 
 
-# ------------------------------------------------------------
-# Function to prepare Errington et al. plot data
-# ------------------------------------------------------------
-rawDataset2LoadORPrep <- function(formatted_dataset = NULL, 
-                                  raw_datasetA  = NULL, 
-                                  raw_datasetB  = NULL,
-                                  cover_sheet = "lichen cover",
-                                  site_sheet  = "Plot info",
-                                  time_filter = "T2") {
-  
-  
-  # -------------------------
-  # 1. If cover_dataset is a file path that exists, load it
-  # -------------------------
-  if (is.character(formatted_dataset) && file.exists(formatted_dataset)) {
-    if (grepl("\\.csv$", formatted_dataset, ignore.case = TRUE)) {
-      # Try read.csv first, fallback to read.csv2
-      df <- tryCatch(
-        read.csv(formatted_dataset),
-        error = function(e) {
-          message("read.csv() failed — retrying with read.csv2()...")
-          read.csv2(formatted_dataset)
-        }
-      )
-      message("cover_dataset2 successfully loaded from CSV file — available in dataset_list")
-      return(df)
-      
-    } else if (grepl("\\.xlsx?$", formatted_dataset, ignore.case = TRUE)) {
-      df <- readxl::read_excel(formatted_dataset)
-      message("cover_dataset2 successfully loaded from Excel file — available in dataset_list")
-      return(df)
-      
-    } else {
-      stop("Unsupported file type for cover_dataset2: ", formatted_dataset)
-    }
-  }
-  
-  # -------------------------
-  # 2. Otherwise, create from raw cover & site files
-  # -------------------------
-  if (is.null(formatted_dataset) && (is.null(raw_datasetA) || is.null(raw_datasetB))) {
-    stop("❌ Formatted dataset or raw file not provided or invalid for cover_dataset2 — cannot create it (nor any subsequent dataset(s) if expected). 
-    Please provide either formatted dataset path or valid raw dataset(s) path (raw dataset A only or, if it is the case, A and B).")
-  }
-  
-  # i. Read raw cover data
-  
-  df_cover <- read_excel(raw_datasetA, sheet = cover_sheet)
-  
-  # Since lichen species are per column, select lichen species
-  
-  # The targeted species are those for which the pooled allometric equation was developed 
-  # in Greuel et al. (2021):
-  # Cladonia mitis and C. arbuscula
-  # C. rangiferina and C. stygia
-  # C. stellaris
-  # C. uncialis (confused with C. amaurocrea)
-  
-  # according to 'lichen list' sheet in Ruth et al. raw data (df_cover):
-  # C. mitis = Cladmit
-  # C. arbuscula = Cladarb
-  # C. rangiferina = Cladran
-  # C. stygia = Cladsty
-  # C. stellaris = Cladste
-  # C. uncialis = Cladunc
-  # C. amaurocrea = Cladama 
-  
-  lichen_species = c("Cladama", "Cladarb", "Cladmit", "Cladran", "Cladste", "Cladsty", "Cladunc")
-  
-  # Keep only relevant columns
-  df_cover <- df_cover[, c("Time", "Plot", "Q ID", lichen_species)]
-  
-  # Sum selected lichen columns into a total percent column
-  df_cover$percent <- rowSums(df_cover[, lichen_species], na.rm = TRUE)
-  
-  # Remove individual lichen species columns
-  df_cover <- df_cover[, !colnames(df_cover) %in% lichen_species]
-  
-  # Add standard species label
-  df_cover$species <- "Cladonia spp."
-  
-  # Filter by time period (e.g., T2)
-  df_cover <- subset(df_cover, Time == time_filter) # time_filter == "T2" for 2018 and "T1" for 2008
-  df_cover <- df_cover[, -which(names(df_cover) == "Time")]
-  
-  
-  # ii. Read site (lat/lon) data
-  
-  df_site <- read_excel(raw_datasetB, sheet = site_sheet, skip = 1)
-  
-  # Remove the 'Plot' column by its position
-  df_site <- df_site[, -which(colnames(df_site) == "Plot")]
-  
-  # Adjust column names for consistency
-  if ("pname" %in% names(df_site)) {
-    names(df_site)[names(df_site) == "pname"] <- "Plot"
-  }
-  
-  # standardize date
-  df_site$Day...13 <- gsub(" .*", "", df_site$Day...13)  # keep only first number before any space or symbol
-  df_site$Day...13 <- trimws(df_site$Day...13)           # remove whitespace
-  df_site$Day...13 <- as.numeric(df_site$Day...13)       # ensure numeric
-  
-  df_site$Month...12 <- tools::toTitleCase(tolower(df_site$Month...12))
-  
-  Sys.setlocale("LC_TIME", "C")
-  df_site$sample_date <- as.Date(
-    with(df_site, paste(Day...13, Month...12, Year...14)),
-    format = "%d %B %Y"
-  )
-  
-  # Keep relevant coordinate columns
-  df_site <- df_site[, c("Plot", "DDlat", "DDlong", "sample_date")]
-  
-  
-  # iii. Merge and rename
-  
-  df_clean <- merge(df_cover, df_site, by = "Plot")
-  
-  # Rename to standardized column names
-  df_clean <- df_clean %>%
-    rename(
-      plotID   = Plot,
-      quadID   = `Q ID`,
-      latitude = DDlat,
-      longitude = DDlong,
-      sample_date = sample_date
-    ) %>%
-    select(plotID, quadID, species, percent, latitude, longitude, sample_date)
-  
-  # iv. Return cleaned dataset
-  message("✅ cover_dataset2 successfully created from raw dataset(s) — available in dataset_list")
-  return(df_clean)
-}
+# # ------------------------------------------------------------
+# # Function to prepare Errington et al. plot data
+# # ------------------------------------------------------------
+# rawDataset2LoadORPrep <- function(formatted_dataset = NULL, 
+#                                   raw_datasetA  = NULL, 
+#                                   raw_datasetB  = NULL,
+#                                   cover_sheet = "lichen cover",
+#                                   site_sheet  = "Plot info",
+#                                   time_filter = "T2") {
+#   
+#   
+#   # -------------------------
+#   # 1. If cover_dataset is a file path that exists, load it
+#   # -------------------------
+#   if (is.character(formatted_dataset) && file.exists(formatted_dataset)) {
+#     if (grepl("\\.csv$", formatted_dataset, ignore.case = TRUE)) {
+#       # Try read.csv first, fallback to read.csv2
+#       df <- tryCatch(
+#         read.csv(formatted_dataset),
+#         error = function(e) {
+#           message("read.csv() failed — retrying with read.csv2()...")
+#           read.csv2(formatted_dataset)
+#         }
+#       )
+#       message("cover_dataset2 successfully loaded from CSV file — available in dataset_list")
+#       return(df)
+#       
+#     } else if (grepl("\\.xlsx?$", formatted_dataset, ignore.case = TRUE)) {
+#       df <- readxl::read_excel(formatted_dataset)
+#       message("cover_dataset2 successfully loaded from Excel file — available in dataset_list")
+#       return(df)
+#       
+#     } else {
+#       stop("Unsupported file type for cover_dataset2: ", formatted_dataset)
+#     }
+#   }
+#   
+#   # -------------------------
+#   # 2. Otherwise, create from raw cover & site files
+#   # -------------------------
+#   if (is.null(formatted_dataset) && (is.null(raw_datasetA) || is.null(raw_datasetB))) {
+#     stop("❌ Formatted dataset or raw file not provided or invalid for cover_dataset2 — cannot create it (nor any subsequent dataset(s) if expected). 
+#     Please provide either formatted dataset path or valid raw dataset(s) path (raw dataset A only or, if it is the case, A and B).")
+#   }
+#   
+#   # i. Read raw cover data
+#   
+#   df_cover <- read_excel(raw_datasetA, sheet = cover_sheet)
+#   
+#   # Since lichen species are per column, select lichen species
+#   
+#   # The targeted species are those for which the pooled allometric equation was developed 
+#   # in Greuel et al. (2021):
+#   # Cladonia mitis and C. arbuscula
+#   # C. rangiferina and C. stygia
+#   # C. stellaris
+#   # C. uncialis (confused with C. amaurocrea)
+#   
+#   # according to 'lichen list' sheet in Ruth et al. raw data (df_cover):
+#   # C. mitis = Cladmit
+#   # C. arbuscula = Cladarb
+#   # C. rangiferina = Cladran
+#   # C. stygia = Cladsty
+#   # C. stellaris = Cladste
+#   # C. uncialis = Cladunc
+#   # C. amaurocrea = Cladama 
+#   
+#   lichen_species = c("Cladama", "Cladarb", "Cladmit", "Cladran", "Cladste", "Cladsty", "Cladunc")
+#   
+#   # Keep only relevant columns
+#   df_cover <- df_cover[, c("Time", "Plot", "Q ID", lichen_species)]
+#   
+#   # Sum selected lichen columns into a total percent column
+#   df_cover$percent <- rowSums(df_cover[, lichen_species], na.rm = TRUE)
+#   
+#   # Remove individual lichen species columns
+#   df_cover <- df_cover[, !colnames(df_cover) %in% lichen_species]
+#   
+#   # Add standard species label
+#   df_cover$species <- "Cladonia spp."
+#   
+#   # Filter by time period (e.g., T2)
+#   df_cover <- subset(df_cover, Time == time_filter) # time_filter == "T2" for 2018 and "T1" for 2008
+#   df_cover <- df_cover[, -which(names(df_cover) == "Time")]
+#   
+#   
+#   # ii. Read site (lat/lon) data
+#   
+#   df_site <- read_excel(raw_datasetB, sheet = site_sheet, skip = 1)
+#   
+#   # Remove the 'Plot' column by its position
+#   df_site <- df_site[, -which(colnames(df_site) == "Plot")]
+#   
+#   # Adjust column names for consistency
+#   if ("pname" %in% names(df_site)) {
+#     names(df_site)[names(df_site) == "pname"] <- "Plot"
+#   }
+#   
+#   # standardize date
+#   df_site$Day...13 <- gsub(" .*", "", df_site$Day...13)  # keep only first number before any space or symbol
+#   df_site$Day...13 <- trimws(df_site$Day...13)           # remove whitespace
+#   df_site$Day...13 <- as.numeric(df_site$Day...13)       # ensure numeric
+#   
+#   df_site$Month...12 <- tools::toTitleCase(tolower(df_site$Month...12))
+#   
+#   Sys.setlocale("LC_TIME", "C")
+#   df_site$sample_date <- as.Date(
+#     with(df_site, paste(Day...13, Month...12, Year...14)),
+#     format = "%d %B %Y"
+#   )
+#   
+#   # Keep relevant coordinate columns
+#   df_site <- df_site[, c("Plot", "DDlat", "DDlong", "sample_date")]
+#   
+#   
+#   # iii. Merge and rename
+#   
+#   df_clean <- merge(df_cover, df_site, by = "Plot")
+#   
+#   # Rename to standardized column names
+#   df_clean <- df_clean %>%
+#     rename(
+#       plotID   = Plot,
+#       quadID   = `Q ID`,
+#       latitude = DDlat,
+#       longitude = DDlong,
+#       sample_date = sample_date
+#     ) %>%
+#     dplyr::select(plotID, quadID, species, percent, latitude, longitude, sample_date)
+#   
+#   # iv. Return cleaned dataset
+#   message("✅ cover_dataset2 successfully created from raw dataset(s) — available in dataset_list")
+#   return(df_clean)
+# }
+# 
+# 
+# 
+# 
+# 
+# # ------------------------------------------------------------
+# # Function to prepare NFI plot data
+# # ------------------------------------------------------------
+# 
+# rawDataset3LoadORPrep <- function(formatted_dataset = NULL, 
+#                                   raw_datasetA  = NULL, 
+#                                   raw_datasetB  = NULL,
+#                                   province_filter = "NT") {
+#   
+#   
+#   # -------------------------
+#   # 1. If cover_dataset is a file path that exists, load it
+#   # -------------------------
+#   if (is.character(formatted_dataset) && file.exists(formatted_dataset)) {
+#     if (grepl("\\.csv$", formatted_dataset, ignore.case = TRUE)) {
+#       # Try read.csv first, fallback to read.csv2
+#       df <- tryCatch(
+#         read.csv(formatted_dataset),
+#         error = function(e) {
+#           message("read.csv() failed — retrying with read.csv2()...")
+#           read.csv2(formatted_dataset)
+#         }
+#       )
+#       message("cover_dataset3 successfully loaded from CSV file — available in dataset_list")
+#       return(df)
+#       
+#     } else if (grepl("\\.xlsx?$", formatted_dataset, ignore.case = TRUE)) {
+#       df <- readxl::read_excel(formatted_dataset)
+#       message("cover_dataset3 successfully loaded from Excel file — available in dataset_list")
+#       return(df)
+#       
+#     } else {
+#       stop("Unsupported file type for cover_dataset3: ", formatted_dataset)
+#     }
+#   }
+#   
+#   # -------------------------
+#   # 2. Otherwise, create from raw cover & site files
+#   # -------------------------
+#   if (is.null(formatted_dataset) && (is.null(raw_datasetA) || is.null(raw_datasetB))) {
+#     stop("❌ Formatted dataset or raw file not provided or invalid for cover_dataset3 — cannot create it (nor any subsequent dataset(s) if expected). 
+#     Please provide either formatted dataset path or valid raw dataset(s) path (raw dataset A only or, if it is the case, A and B).")
+#   }
+#   
+#   # i. Load input files
+#   
+#   ground_cover <- read.csv(raw_datasetA)
+#   ground_cover_loc <- read.csv(raw_datasetB)
+#   
+#   # ii. Convert UTM to lat/lon by UTM zone
+#   
+#   convert_utm_to_latlon <- function(df_zone) {
+#     zone_number <- unique(df_zone$utm_zone)
+#     if (length(zone_number) != 1) stop("Multiple zones in one subset")
+#     
+#     epsg_code <- 32600 + as.integer(zone_number)  # Northern hemisphere UTM
+#     df_sf <- st_as_sf(df_zone, coords = c("utm_e", "utm_n"), crs = epsg_code)
+#     df_latlon <- st_transform(df_sf, crs = 4326)
+#     coords <- st_coordinates(df_latlon)
+#     
+#     df_zone$longitude <- coords[, 1]
+#     df_zone$latitude <- coords[, 2]
+#     return(df_zone)
+#   }
+#   
+#   NFI_data <- ground_cover_loc %>%
+#     group_split(utm_zone) %>%
+#     lapply(convert_utm_to_latlon) %>%
+#     bind_rows()
+#   
+#   
+#   # iii. Join cover and location data (Northwest Territories = "NT")
+#   
+#   NFI_data <- dplyr::inner_join(ground_cover, NFI_data, by = "nfi_plot")
+#   
+#   
+#   # iv. Filter for desired province(s)
+#   
+#   NFI_data <- NFI_data[NFI_data$province %in% province_filter, ]
+#   
+#   
+#   # v. Keep and rename relevant columns
+#   
+#   NFI_data <- NFI_data[, c("nfi_plot", "plot_type", "meas_date.y",
+#                            "ec_genus", "ec_species", "ec_species_pct",
+#                            "longitude", "latitude")]
+#   
+#   # vi. standardize data
+#   Sys.setlocale("LC_TIME", "C")
+#   NFI_data$sample_date <- as.Date(NFI_data$meas_date.y, format = "%Y-%b-%d")
+#   
+#   
+#   # vii. Filter for Cladonia species
+#   
+#   # The targeted species are those for which the pooled allometric equation was developed in Greuel et al. (2021):
+#   # Cladonia mitis and C. arbuscula
+#   # C. rangiferina and C. stygia
+#   # C. stellaris
+#   # C. uncialis (confused with C. amaurocrea)
+#   
+#   # Based on NFI Data dictionary v.5.3 (https://nfi.nfis.org/resources/groundplot/4a-GPDataDictionary5.3.pdf),
+#   # page 102, ec_genus = 4 letter genus code if collected prior to 2021 and ec_species = 3 letter species code (generally the first 3 letters of the scientific species name), 
+#   # if collected prior to 2021.
+#   
+#   # Given that, I assumed:
+#   # Cladonia or Cladina =  Clad/CLAD as genus and
+#   # C. mitis = MIT  
+#   # C. arbuscula = ARB 
+#   # C. rangiferina = RAN 
+#   # C. stygia = STY
+#   # C. stellaris = STE
+#   # C. uncialis = unc
+#   # C. amaurocrea = AMA
+#   
+#   lichen_species = c("MIT", "ARB", "RAN",  "STY", "STE", "unc", "AMA")
+#   
+#   NFI_data_clad <- NFI_data %>%
+#     filter(ec_genus %in% c("Clad", "CLAD") |
+#              ec_species %in% lichen_species) 
+#   
+#   
+#   # viii. Add missing plots with 0% Cladonia spp. cover
+#   
+#   missing_clad <- NFI_data %>%
+#     filter(!(nfi_plot %in% NFI_data_clad$nfi_plot)) %>%
+#     distinct(nfi_plot, .keep_all = TRUE) %>%
+#     select(nfi_plot, latitude, longitude, sample_date) %>%
+#     mutate(
+#       ec_species_pct = 0,
+#       plot_type = NA_character_,
+#       ec_genus = NA_character_,
+#       ec_species = "Cladonia spp."
+#     )
+#   
+#   
+#   # vix. Combine and format standardized output
+#   
+#   df_clean <- bind_rows(NFI_data_clad, missing_clad) %>%
+#     select(
+#       plotID = nfi_plot,
+#       quadID = plot_type,
+#       species = ec_species,
+#       percent = ec_species_pct,
+#       latitude,
+#       longitude,
+#       sample_date
+#     ) %>%
+#     mutate(percent = ifelse(percent < 0, 0, percent))
+#   
+#   
+#   # x. Return standardized data
+#   message("✅ cover_dataset3 successfully created from raw dataset(s) — available in dataset_list")
+#   return(df_clean)
+# }
 
 
 
-
-
-# ------------------------------------------------------------
-# Function to prepare NFI plot data
-# ------------------------------------------------------------
-
-rawDataset3LoadORPrep <- function(formatted_dataset = NULL, 
-                                  raw_datasetA  = NULL, 
-                                  raw_datasetB  = NULL,
-                                  province_filter = "NT") {
-  
-  
-  # -------------------------
-  # 1. If cover_dataset is a file path that exists, load it
-  # -------------------------
-  if (is.character(formatted_dataset) && file.exists(formatted_dataset)) {
-    if (grepl("\\.csv$", formatted_dataset, ignore.case = TRUE)) {
-      # Try read.csv first, fallback to read.csv2
-      df <- tryCatch(
-        read.csv(formatted_dataset),
-        error = function(e) {
-          message("read.csv() failed — retrying with read.csv2()...")
-          read.csv2(formatted_dataset)
-        }
-      )
-      message("cover_dataset3 successfully loaded from CSV file — available in dataset_list")
-      return(df)
-      
-    } else if (grepl("\\.xlsx?$", formatted_dataset, ignore.case = TRUE)) {
-      df <- readxl::read_excel(formatted_dataset)
-      message("cover_dataset3 successfully loaded from Excel file — available in dataset_list")
-      return(df)
-      
-    } else {
-      stop("Unsupported file type for cover_dataset3: ", formatted_dataset)
-    }
-  }
-  
-  # -------------------------
-  # 2. Otherwise, create from raw cover & site files
-  # -------------------------
-  if (is.null(formatted_dataset) && (is.null(raw_datasetA) || is.null(raw_datasetB))) {
-    stop("❌ Formatted dataset or raw file not provided or invalid for cover_dataset3 — cannot create it (nor any subsequent dataset(s) if expected). 
-    Please provide either formatted dataset path or valid raw dataset(s) path (raw dataset A only or, if it is the case, A and B).")
-  }
-  
-  # i. Load input files
-  
-  ground_cover <- read.csv(raw_datasetA)
-  ground_cover_loc <- read.csv(raw_datasetB)
-  
-  # ii. Convert UTM to lat/lon by UTM zone
-  
-  convert_utm_to_latlon <- function(df_zone) {
-    zone_number <- unique(df_zone$utm_zone)
-    if (length(zone_number) != 1) stop("Multiple zones in one subset")
-    
-    epsg_code <- 32600 + as.integer(zone_number)  # Northern hemisphere UTM
-    df_sf <- st_as_sf(df_zone, coords = c("utm_e", "utm_n"), crs = epsg_code)
-    df_latlon <- st_transform(df_sf, crs = 4326)
-    coords <- st_coordinates(df_latlon)
-    
-    df_zone$longitude <- coords[, 1]
-    df_zone$latitude <- coords[, 2]
-    return(df_zone)
-  }
-  
-  NFI_data <- ground_cover_loc %>%
-    group_split(utm_zone) %>%
-    lapply(convert_utm_to_latlon) %>%
-    bind_rows()
-  
-  
-  # iii. Join cover and location data (Northwest Territories = "NT")
-  
-  NFI_data <- dplyr::inner_join(ground_cover, NFI_data, by = "nfi_plot")
-  
-  
-  # iv. Filter for desired province(s)
-  
-  NFI_data <- NFI_data[NFI_data$province %in% province_filter, ]
-  
-  
-  # v. Keep and rename relevant columns
-  
-  NFI_data <- NFI_data[, c("nfi_plot", "plot_type", "meas_date.y",
-                           "ec_genus", "ec_species", "ec_species_pct",
-                           "longitude", "latitude")]
-  
-  # vi. standardize data
-  Sys.setlocale("LC_TIME", "C")
-  NFI_data$sample_date <- as.Date(NFI_data$meas_date.y, format = "%Y-%b-%d")
-  
-  
-  # vii. Filter for Cladonia species
-  
-  # The targeted species are those for which the pooled allometric equation was developed in Greuel et al. (2021):
-  # Cladonia mitis and C. arbuscula
-  # C. rangiferina and C. stygia
-  # C. stellaris
-  # C. uncialis (confused with C. amaurocrea)
-  
-  # Based on NFI Data dictionary v.5.3 (https://nfi.nfis.org/resources/groundplot/4a-GPDataDictionary5.3.pdf),
-  # page 102, ec_genus = 4 letter genus code if collected prior to 2021 and ec_species = 3 letter species code (generally the first 3 letters of the scientific species name), 
-  # if collected prior to 2021.
-  
-  # Given that, I assumed:
-  # Cladonia or Cladina =  Clad/CLAD as genus and
-  # C. mitis = MIT  
-  # C. arbuscula = ARB 
-  # C. rangiferina = RAN 
-  # C. stygia = STY
-  # C. stellaris = STE
-  # C. uncialis = unc
-  # C. amaurocrea = AMA
-  
-  lichen_species = c("MIT", "ARB", "RAN",  "STY", "STE", "unc", "AMA")
-  
-  NFI_data_clad <- NFI_data %>%
-    filter(ec_genus %in% c("Clad", "CLAD") |
-             ec_species %in% lichen_species) 
-  
-  
-  # viii. Add missing plots with 0% Cladonia spp. cover
-  
-  missing_clad <- NFI_data %>%
-    filter(!(nfi_plot %in% NFI_data_clad$nfi_plot)) %>%
-    distinct(nfi_plot, .keep_all = TRUE) %>%
-    select(nfi_plot, latitude, longitude, sample_date) %>%
-    mutate(
-      ec_species_pct = 0,
-      plot_type = NA_character_,
-      ec_genus = NA_character_,
-      ec_species = "Cladonia spp."
-    )
-  
-  
-  # vix. Combine and format standardized output
-  
-  df_clean <- bind_rows(NFI_data_clad, missing_clad) %>%
-    select(
-      plotID = nfi_plot,
-      quadID = plot_type,
-      species = ec_species,
-      percent = ec_species_pct,
-      latitude,
-      longitude,
-      sample_date
-    ) %>%
-    mutate(percent = ifelse(percent < 0, 0, percent))
-  
-  
-  # x. Return standardized data
-  message("✅ cover_dataset3 successfully created from raw dataset(s) — available in dataset_list")
-  return(df_clean)
-}
-
-
-
-# ------------------------------------------------------------
-# Function to prepare Cook et al. plot data
-# ------------------------------------------------------------
-
-raw2Dataset1LoadORPrep <- function(formatted_dataset = NULL, 
-                                   raw_datasetA  = NULL, 
-                                   raw_datasetB  = NULL) {
-  
-  # --- Validation block ---
-  if (is.null(formatted_dataset)) {
-    
-    # Case: one of A or B missing, but not both
-    if (xor(is.null(raw_datasetA), is.null(raw_datasetB))) {
-      stop(paste0(
-        "❌ Formatted dataset or raw file not provided or invalid for biomass_dataset1 — cannot create it (nor any subsequent dataset(s) if expected). ",
-        "\nPlease provide either a formatted dataset path or valid raw dataset(s) path ",
-        "(raw dataset A only or, if it is the case, A and B)."
-      ))
-    }
-    
-    # Optional: if both are missing, keep your central/global stop check for that case
-  }
-  # -------------------------
-  # 1. If cover_dataset is a file path that exists, load it
-  # -------------------------
-  if (is.character(formatted_dataset) && file.exists(formatted_dataset)) {
-    if (grepl("\\.csv$", formatted_dataset, ignore.case = TRUE)) {
-      # Try read.csv first, fallback to read.csv2
-      df <- tryCatch(
-        read.csv(formatted_dataset),
-        error = function(e) {
-          message("read.csv() failed — retrying with read.csv2()...")
-          read.csv2(formatted_dataset)
-        }
-      )
-      message("biomass_dataset1 successfully loaded from CSV file — available in dataset_list")
-      return(df)
-      
-    } else if (grepl("\\.xlsx?$", formatted_dataset, ignore.case = TRUE)) {
-      df <- readxl::read_excel(formatted_dataset)
-      message("biomass_dataset1 successfully loaded from Excel file — available in dataset_list")
-      return(df)
-      
-    } else {
-      stop("Unsupported file type for biomass_dataset1: ", formatted_dataset)
-    }
-  }
-  
-  # -------------------------
-  # 2. Otherwise, create from raw cover & site files
-  # -------------------------
-  if (is.null(formatted_dataset) && (is.null(raw_datasetA) && is.null(raw_datasetB))) {
-    stop("❌ Formatted dataset or raw file not provided or invalid for biomass_dataset1 — cannot create it (nor any subsequent dataset(s) if expected). 
-    Please provide either formatted dataset path or valid raw dataset(s) path (raw dataset A only or, if it is the case, A and B).")
-  }
-  
-  # i. Load data
-  
-  df_biomass <- read_excel(raw_datasetA, sheet = "byplot_kgha ", .name_repair = "minimal")
-  df_site <- read_excel(raw_datasetB, sheet = "Macroplot data", .name_repair = "minimal")
-  
-  
-  # ii. Correct lichen biomass for specific plots
-  
-  # The targeted species are those for which the pooled allometric equation was developed in Greuel et al. (2021):
-  # Cladonia mitis and C. arbuscula
-  # C. rangiferina and C. stygia
-  # C. stellaris
-  # C. uncialis (confused with C. amaurocrea)
-  
-  #From 'sppabbrev' sheet of 'df_biomass' or in Cook et al's report:
-  #https://nwtdiscoveryportal.enr.gov.nt.ca/geoportaldocuments/2022-23%20-%20DELIVERABLE%20-%20CIMP205(Kelly)%20-%20Final%20Vegetation%20Report%20May2023.pdf
-  
-  #Cladina mitis = CLMI
-  #C. arbuscula = absent
-  #C. rangiferina = CLRA
-  #C. stygia = absent
-  #C. stellaris = CLST
-  #C.uncialis = CLADUNC
-  #C. amaurocrea = absent
-  
-  df_biomass[, 8:ncol(df_biomass)] <- sapply(df_biomass[, 8:ncol(df_biomass)], as.numeric)
-  
-  specificPlots <- c(11:24, "M1", "M2", "M3", "M4", "M5", "M6")
-  
-  lichen_species <- c("CLMI", "CLRA", "CLST", "CLADUNC") 
-  
-  df_biomass[df_biomass$ID %in% specificPlots, lichen_species] <-
-    df_biomass[df_biomass$ID %in% specificPlots, lichen_species] / 4 #divide by 4 to correct biomass, according to Cook in a conversation
-  
-  
-  # iii. Keep relevant columns
-  
-  fiveColumns <- df_biomass[, c("YEAR", "DY", "M", "ID", "PLOT")]
-  fiveColumns <- data.frame(fiveColumns)
-  fiveColumns <- fiveColumns[-c(1, 2), ]
-  
-  # Repeat fiveColumns to match species count
-  new_fiveColumns <- fiveColumns[rep(seq_len(nrow(fiveColumns)),
-                                     each = length(lichen_species)), ]
-  rownames(new_fiveColumns) <- NULL
-  
-  
-  # iv. Extract biomass data and reshape
-  
-  lichenColumns <- df_biomass[, lichen_species]
-  lichenColumns_transp <- as.data.frame(t(lichenColumns))
-  df_biomass_transposed <- as.data.frame(lichenColumns_transp[-c(1, 2)])
-  
-  df_biomass_long <- gather(df_biomass_transposed,
-                            key = "temp", value = "Biomass_Kg_ha")
-  df_biomass_long$Species <- rep(rownames(df_biomass_transposed),
-                                 ncol(df_biomass_transposed))
-  df_biomass_long <- df_biomass_long[, c("Species", "Biomass_Kg_ha")]
-  
-  
-  # v. Merge structure and biomass data
-  
-  df_biomass_structured <- cbind(new_fiveColumns, df_biomass_long)
-  rownames(df_biomass_structured) <- NULL
-  
-  
-  # vi. Clean up the site (location) data
-  
-  new_header <- as.character(unlist(df_site[1, ]))
-  df_site <- df_site[-1, ]
-  colnames(df_site) <- new_header
-  
-  cols_location <- df_site[, c("ID", "GPSLAT", "GPSLONG")]
-  site_coords <- data.frame(cols_location)
-  site_coords$GPSLAT <- as.numeric(site_coords$GPSLAT)
-  site_coords$GPSLONG <- as.numeric(site_coords$GPSLONG)
-  
-  # vii. Combine with coordinates and adjust biomass
-  
-  df_biomass_with_coords <- merge(df_biomass_structured,
-                                  site_coords, by = "ID", all.x = TRUE)
-  
-  df_biomass_with_coords$Biomass_Kg_ha <- as.numeric(df_biomass_with_coords$Biomass_Kg_ha)
-  df_biomass_with_coords$Biomass_Kg_ha <- df_biomass_with_coords$Biomass_Kg_ha * 1.56 # 64% of living biomass. Multiply it by 1.56 to be comparable with Balter's data
-  df_biomass_with_coords <- df_biomass_with_coords[!is.na(df_biomass_with_coords$Biomass_Kg_ha), ]
-  
-  
-  # viii. Filter for Cladonia species only
-  
-  cladsSpecies <- c("CLMI", "CLRA", "CLADUNC", "CLST")
-  df_biomass_with_coords <- subset(df_biomass_with_coords, Species %in% cladsSpecies)
-  rownames(df_biomass_with_coords) <- NULL
-  
-  
-  # vix. Aggregate biomass per plot and quadrat
-  
-  df_biomass_aggregated <- df_biomass_with_coords %>%
-    group_by(ID, PLOT) %>%
-    summarise(
-      YEAR = first(YEAR),
-      DY = first(DY),
-      M = first(M),
-      Species = "Cladonia spp.",
-      GPSLAT = first(GPSLAT),
-      GPSLONG = first(GPSLONG),
-      Biomass_Kg_ha = sum(Biomass_Kg_ha),
-      .groups = "drop"
-    )
-  
-  
-  # standardize date
-  df_biomass_aggregated$sample_date <- ymd(sprintf("%04d-%02d-%02d", df_biomass_aggregated$YEAR, 
-                                                   df_biomass_aggregated$M,
-                                                   df_biomass_aggregated$DY))
-  
-  
-  # x. Rename columns and finalize output
-  
-  df_clean <- df_biomass_aggregated %>%
-    rename(
-      plotID = ID,
-      quadID = PLOT,
-      species = Species,
-      biomass_dens_quad = Biomass_Kg_ha,
-      latitude = GPSLAT,
-      longitude = GPSLONG,
-      sample_date = sample_date
-    ) %>%
-    select(plotID, quadID, species, biomass_dens_quad, latitude, longitude, sample_date)
-  
-  
-  # xi. Return standardized dataset
-  message("✅ biomass_dataset1 successfully created from raw dataset(s) — available in dataset_list")
-  return(df_clean)
-}
+# # ------------------------------------------------------------
+# # Function to prepare Cook et al. plot data
+# # ------------------------------------------------------------
+# 
+# raw2Dataset1LoadORPrep <- function(formatted_dataset = NULL, 
+#                                    raw_datasetA  = NULL, 
+#                                    raw_datasetB  = NULL) {
+#   
+#   # --- Validation block ---
+#   if (is.null(formatted_dataset)) {
+#     
+#     # Case: one of A or B missing, but not both
+#     if (xor(is.null(raw_datasetA), is.null(raw_datasetB))) {
+#       stop(paste0(
+#         "❌ Formatted dataset or raw file not provided or invalid for biomass_dataset1 — cannot create it (nor any subsequent dataset(s) if expected). ",
+#         "\nPlease provide either a formatted dataset path or valid raw dataset(s) path ",
+#         "(raw dataset A only or, if it is the case, A and B)."
+#       ))
+#     }
+#     
+#     # Optional: if both are missing, keep your central/global stop check for that case
+#   }
+#   # -------------------------
+#   # 1. If cover_dataset is a file path that exists, load it
+#   # -------------------------
+#   if (is.character(formatted_dataset) && file.exists(formatted_dataset)) {
+#     if (grepl("\\.csv$", formatted_dataset, ignore.case = TRUE)) {
+#       # Try read.csv first, fallback to read.csv2
+#       df <- tryCatch(
+#         read.csv(formatted_dataset),
+#         error = function(e) {
+#           message("read.csv() failed — retrying with read.csv2()...")
+#           read.csv2(formatted_dataset)
+#         }
+#       )
+#       message("biomass_dataset1 successfully loaded from CSV file — available in dataset_list")
+#       return(df)
+#       
+#     } else if (grepl("\\.xlsx?$", formatted_dataset, ignore.case = TRUE)) {
+#       df <- readxl::read_excel(formatted_dataset)
+#       message("biomass_dataset1 successfully loaded from Excel file — available in dataset_list")
+#       return(df)
+#       
+#     } else {
+#       stop("Unsupported file type for biomass_dataset1: ", formatted_dataset)
+#     }
+#   }
+#   
+#   # -------------------------
+#   # 2. Otherwise, create from raw cover & site files
+#   # -------------------------
+#   if (is.null(formatted_dataset) && (is.null(raw_datasetA) && is.null(raw_datasetB))) {
+#     stop("❌ Formatted dataset or raw file not provided or invalid for biomass_dataset1 — cannot create it (nor any subsequent dataset(s) if expected). 
+#     Please provide either formatted dataset path or valid raw dataset(s) path (raw dataset A only or, if it is the case, A and B).")
+#   }
+#   
+#   # i. Load data
+#   
+#   df_biomass <- read_excel(raw_datasetA, sheet = "byplot_kgha ", .name_repair = "minimal")
+#   df_site <- read_excel(raw_datasetB, sheet = "Macroplot data", .name_repair = "minimal")
+#   
+#   
+#   # ii. Correct lichen biomass for specific plots
+#   
+#   # The targeted species are those for which the pooled allometric equation was developed in Greuel et al. (2021):
+#   # Cladonia mitis and C. arbuscula
+#   # C. rangiferina and C. stygia
+#   # C. stellaris
+#   # C. uncialis (confused with C. amaurocrea)
+#   
+#   #From 'sppabbrev' sheet of 'df_biomass' or in Cook et al's report:
+#   #https://nwtdiscoveryportal.enr.gov.nt.ca/geoportaldocuments/2022-23%20-%20DELIVERABLE%20-%20CIMP205(Kelly)%20-%20Final%20Vegetation%20Report%20May2023.pdf
+#   
+#   #Cladina mitis = CLMI
+#   #C. arbuscula = absent
+#   #C. rangiferina = CLRA
+#   #C. stygia = absent
+#   #C. stellaris = CLST
+#   #C.uncialis = CLADUNC
+#   #C. amaurocrea = absent
+#   
+#   df_biomass[, 8:ncol(df_biomass)] <- sapply(df_biomass[, 8:ncol(df_biomass)], as.numeric)
+#   
+#   specificPlots <- c(11:24, "M1", "M2", "M3", "M4", "M5", "M6")
+#   
+#   lichen_species <- c("CLMI", "CLRA", "CLST", "CLADUNC") 
+#   
+#   df_biomass[df_biomass$ID %in% specificPlots, lichen_species] <-
+#     df_biomass[df_biomass$ID %in% specificPlots, lichen_species] / 4 #divide by 4 to correct biomass, according to Cook in a conversation
+#   
+#   
+#   # iii. Keep relevant columns
+#   
+#   fiveColumns <- df_biomass[, c("YEAR", "DY", "M", "ID", "PLOT")]
+#   fiveColumns <- data.frame(fiveColumns)
+#   fiveColumns <- fiveColumns[-c(1, 2), ]
+#   
+#   # Repeat fiveColumns to match species count
+#   new_fiveColumns <- fiveColumns[rep(seq_len(nrow(fiveColumns)),
+#                                      each = length(lichen_species)), ]
+#   rownames(new_fiveColumns) <- NULL
+#   
+#   
+#   # iv. Extract biomass data and reshape
+#   
+#   lichenColumns <- df_biomass[, lichen_species]
+#   lichenColumns_transp <- as.data.frame(t(lichenColumns))
+#   df_biomass_transposed <- as.data.frame(lichenColumns_transp[-c(1, 2)])
+#   
+#   df_biomass_long <- gather(df_biomass_transposed,
+#                             key = "temp", value = "Biomass_Kg_ha")
+#   df_biomass_long$Species <- rep(rownames(df_biomass_transposed),
+#                                  ncol(df_biomass_transposed))
+#   df_biomass_long <- df_biomass_long[, c("Species", "Biomass_Kg_ha")]
+#   
+#   
+#   # v. Merge structure and biomass data
+#   
+#   df_biomass_structured <- cbind(new_fiveColumns, df_biomass_long)
+#   rownames(df_biomass_structured) <- NULL
+#   
+#   
+#   # vi. Clean up the site (location) data
+#   
+#   new_header <- as.character(unlist(df_site[1, ]))
+#   df_site <- df_site[-1, ]
+#   colnames(df_site) <- new_header
+#   
+#   cols_location <- df_site[, c("ID", "GPSLAT", "GPSLONG")]
+#   site_coords <- data.frame(cols_location)
+#   site_coords$GPSLAT <- as.numeric(site_coords$GPSLAT)
+#   site_coords$GPSLONG <- as.numeric(site_coords$GPSLONG)
+#   
+#   # vii. Combine with coordinates and adjust biomass
+#   
+#   df_biomass_with_coords <- merge(df_biomass_structured,
+#                                   site_coords, by = "ID", all.x = TRUE)
+#   
+#   df_biomass_with_coords$Biomass_Kg_ha <- as.numeric(df_biomass_with_coords$Biomass_Kg_ha)
+#   df_biomass_with_coords$Biomass_Kg_ha <- df_biomass_with_coords$Biomass_Kg_ha * 1.56 # 64% of living biomass. Multiply it by 1.56 to be comparable with Balter's data
+#   df_biomass_with_coords <- df_biomass_with_coords[!is.na(df_biomass_with_coords$Biomass_Kg_ha), ]
+#   
+#   
+#   # viii. Filter for Cladonia species only
+#   
+#   cladsSpecies <- c("CLMI", "CLRA", "CLADUNC", "CLST")
+#   df_biomass_with_coords <- subset(df_biomass_with_coords, Species %in% cladsSpecies)
+#   rownames(df_biomass_with_coords) <- NULL
+#   
+#   
+#   # vix. Aggregate biomass per plot and quadrat
+#   
+#   df_biomass_aggregated <- df_biomass_with_coords %>%
+#     group_by(ID, PLOT) %>%
+#     summarise(
+#       YEAR = first(YEAR),
+#       DY = first(DY),
+#       M = first(M),
+#       Species = "Cladonia spp.",
+#       GPSLAT = first(GPSLAT),
+#       GPSLONG = first(GPSLONG),
+#       Biomass_Kg_ha = sum(Biomass_Kg_ha),
+#       .groups = "drop"
+#     )
+#   
+#   
+#   # standardize date
+#   df_biomass_aggregated$sample_date <- ymd(sprintf("%04d-%02d-%02d", df_biomass_aggregated$YEAR, 
+#                                                    df_biomass_aggregated$M,
+#                                                    df_biomass_aggregated$DY))
+#   
+#   
+#   # x. Rename columns and finalize output
+#   
+#   df_clean <- df_biomass_aggregated %>%
+#     rename(
+#       plotID = ID,
+#       quadID = PLOT,
+#       species = Species,
+#       biomass_dens_quad = Biomass_Kg_ha,
+#       latitude = GPSLAT,
+#       longitude = GPSLONG,
+#       sample_date = sample_date
+#     ) %>%
+#     select(plotID, quadID, species, biomass_dens_quad, latitude, longitude, sample_date)
+#   
+#   
+#   # xi. Return standardized dataset
+#   message("✅ biomass_dataset1 successfully created from raw dataset(s) — available in dataset_list")
+#   return(df_clean)
+# }
 
 
 
@@ -559,7 +559,7 @@ raw2Dataset1LoadORPrep <- function(formatted_dataset = NULL,
 # Function to prepare LGL plot data
 # ------------------------------------------------------------
 
-raw2Dataset2LoadORPrep <- function(formatted_dataset = NULL, 
+raw2Dataset1LoadORPrep <- function(formatted_dataset = NULL, 
                                    raw_datasetA  = NULL, 
                                    raw_datasetB  = NULL, epsg_code = 32611) {
   

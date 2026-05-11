@@ -1,4 +1,4 @@
-datasetPreparation <- function(dataset_list, target_gva, sampling_sizes_m2) {
+datasetPreparation <- function(dataset_list, target_gva, sampling_size_m2) {
   
   pattern <- paste(target_gva, collapse = "|")
   
@@ -29,7 +29,7 @@ datasetPreparation <- function(dataset_list, target_gva, sampling_sizes_m2) {
     # 2. Sampling size (explicit, per dataset)
     # ---------------------------
     
-    sampling_size_m2 <- sampling_sizes_m2[X]
+    sampling_size_m2 <- sampling_size_m2[X]
     
     df <- df %>%
       dplyr::mutate(

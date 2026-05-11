@@ -1,21 +1,267 @@
+# cropLandCoverProduct <- function(
+#     study_area_path,
+#     land_cover_paths,
+#     list_of_land_cover_names,
+#     output_dir = cropped_lc_dir
+# ) {
+#   
+#   cat("Cropping land cover product(s) to study area in parallel...\n")
+#   flush.console()
+#   
+#   # --- Create output directory ---
+#   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+#   
+#   library(terra)
+#   library(doParallel)
+#   library(foreach)
+#   
+#   # --- Detect environment and set cores ---
+#   if (nzchar(Sys.getenv("SLURM_JOB_ID"))) {
+#     ncores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", unset = 1))
+#     cat(sprintf("  Detected SLURM environment: using %d cores\n", ncores))
+#   } else {
+#     ncores <- max(1, parallel::detectCores() - 1)
+#     cat(sprintf("  Detected local environment: using %d cores\n", ncores))
+#   }
+#   flush.console()
+#   
+#   # --- Create temporary working directory ---
+#   workdir <- file.path(tempdir(), "crop_temp")
+#   dir.create(workdir, showWarnings = FALSE)
+#   
+#   # --- Load original study area ---
+#   study_area <- vect(study_area_path)
+#   
+#   # --- Pre-project study area for each land cover raster ---
+#   cat("  Pre-projecting study areas for each land cover product...\n")
+#   study_area_files <- vector("character", length(land_cover_paths))
+#   for (i in seq_along(land_cover_paths)) {
+#     r <- rast(land_cover_paths[[i]])
+#     sa_proj <- project(study_area, crs(r))
+#     sa_file <- file.path(workdir, paste0("study_area_", i, ".gpkg"))
+#     writeVector(sa_proj, sa_file, overwrite = TRUE)
+#     study_area_files[i] <- sa_file
+#   }
+#   
+#   # --- Setup parallel cluster ---
+#   cl <- makeCluster(ncores, type = "PSOCK")
+#   registerDoParallel(cl)
+#   
+#   # --- Worker function ---
+#   f_crop <- function(raster_path, study_area_file, lc_name, out_index, output_dir) {
+#     library(terra)
+#     r <- rast(raster_path)
+#     sa <- vect(study_area_file)
+#     
+#     cropped <- crop(r, sa)
+#     cropped <- mask(cropped, sa)
+#     
+#     outname <- paste0("cropped_land_cover", out_index, "_", lc_name, ".tif")
+#     outfile <- file.path(output_dir, outname)
+#     writeRaster(cropped, outfile, overwrite = TRUE)
+#     return(outfile)
+#   }
+#   
+#   # --- Run crops in parallel ---
+#   cat("  Running crop operations in parallel...\n")
+#   flush.console()
+#   final_files <- foreach(i = seq_along(land_cover_paths), .combine = c) %dopar% {
+#     f_crop(
+#       raster_path = land_cover_paths[[i]],
+#       study_area_file = study_area_files[i],
+#       lc_name = list_of_land_cover_names[[i]],
+#       out_index = i,
+#       output_dir = output_dir
+#     )
+#   }
+#   
+#   stopCluster(cl)
+#   
+#   # --- Load cropped rasters into R ---
+#    cropped_raster_list <- lapply(final_files, rast)
+#   # names(cropped_raster_list) <- paste0("cropped_land_cover", seq_along(list_of_land_cover_names), "_", list_of_land_cover_names)
+#   
+#   
+#   if (length(cropped_raster_list) == 0) {
+#     stop(
+#       "❌ No land-cover rasters were cropped.\n",
+#       "Check that land_cover_paths and list_of_land_cover_names match."
+#     )
+#   }
+#   
+#   names(cropped_raster_list) <- paste0(
+#     "cropped_land_cover",
+#     seq_along(cropped_raster_list),
+#     "_",
+#     list_of_land_cover_names[seq_along(cropped_raster_list)]
+#   )
+#   
+#   
+#   message("\n✅ Land cover product(s) successfully cropped to study area", "\n")
+#   return(cropped_raster_list)
+# }
+
+
+
+
+
+# cropLandCoverProduct <- function(
+#     study_area_path,
+#     land_cover_paths,
+#     list_of_land_cover_names,
+#     output_dir
+# ) {
+#   
+#   cat("Cropping land cover product(s) to study area in parallel...\n")
+#   flush.console()
+#   
+#   # ------------------------------------------------------------
+#   # Basic validation (CRITICAL)
+#   # ------------------------------------------------------------
+#   if (length(land_cover_paths) != length(list_of_land_cover_names)) {
+#     stop(
+#       "❌ land_cover_paths (", length(land_cover_paths),
+#       ") and list_of_land_cover_names (", length(list_of_land_cover_names),
+#       ") must have the same length."
+#     )
+#   }
+#   
+#   if (!dir.exists(output_dir)) {
+#     dir.create(output_dir, recursive = TRUE)
+#   }
+#   
+#   library(terra)
+#   library(doParallel)
+#   library(foreach)
+#   
+#   # ------------------------------------------------------------
+#   # Detect environment and set cores
+#   # ------------------------------------------------------------
+#   if (nzchar(Sys.getenv("SLURM_JOB_ID"))) {
+#     ncores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", unset = 1))
+#     cat(sprintf("  Detected SLURM environment: using %d cores\n", ncores))
+#   } else {
+#     ncores <- max(1, parallel::detectCores() - 1)
+#     cat(sprintf("  Detected local environment: using %d cores\n", ncores))
+#   }
+#   flush.console()
+#   
+#   # ------------------------------------------------------------
+#   # Load and project study area once
+#   # ------------------------------------------------------------
+#   study_area <- vect(study_area_path)
+#   
+#   # ------------------------------------------------------------
+#   # Prepare output filenames (IMPORTANT)
+#   # ------------------------------------------------------------
+#   out_files <- file.path(
+#     output_dir,
+#     paste0(
+#       "cropped_land_cover",
+#       seq_along(list_of_land_cover_names),
+#       "_",
+#       list_of_land_cover_names,
+#       ".tif"
+#     )
+#   )
+#   
+#   # ------------------------------------------------------------
+#   # Setup parallel cluster
+#   # ------------------------------------------------------------
+#   cl <- makeCluster(ncores, type = "PSOCK")
+#   registerDoParallel(cl)
+#   
+#   # ------------------------------------------------------------
+#   # Run crops in parallel (ROBUST)
+#   # ------------------------------------------------------------
+#   cat("  Running crop operations in parallel...\n")
+#   flush.console()
+#   
+#   final_files <- foreach(
+#     i = seq_along(list_of_land_cover_names),
+#     .packages = "terra",
+#     .errorhandling = "stop"
+#   ) %dopar% {
+#     
+#     raster_path <- land_cover_paths[[i]]
+#     lc_name <- list_of_land_cover_names[i]
+#     out_file <- out_files[i]
+#     
+#     if (!file.exists(raster_path)) {
+#       stop("❌ Land-cover file not found: ", raster_path)
+#     }
+#     
+#     r <- rast(raster_path)
+#     sa_proj <- project(study_area, crs(r))
+#     
+#     cropped <- crop(r, sa_proj)
+#     cropped <- mask(cropped, sa_proj)
+#     
+#     writeRaster(cropped, out_file, overwrite = TRUE)
+#     out_file
+#   }
+#   
+#   stopCluster(cl)
+#   
+#   # ------------------------------------------------------------
+#   # Safety check
+#   # ------------------------------------------------------------
+#   if (length(final_files) == 0) {
+#     stop(
+#       "❌ No land-cover rasters were cropped.\n",
+#       "Check land_cover_paths and list_of_land_cover_names."
+#     )
+#   }
+#   
+#   # ------------------------------------------------------------
+#   # Load cropped rasters into R
+#   # ------------------------------------------------------------
+#   cropped_raster_list <- lapply(final_files, rast)
+#   names(cropped_raster_list) <- paste0(
+#     "cropped_land_cover",
+#     seq_along(list_of_land_cover_names),
+#     "_",
+#     list_of_land_cover_names
+#   )
+#   
+#   message("\n✅ Land cover product(s) successfully cropped to study area\n")
+#   return(cropped_raster_list)
+# }
+
+
+
 cropLandCoverProduct <- function(
     study_area_path,
     land_cover_paths,
     list_of_land_cover_names,
-    output_dir = cropped_lc_dir
+    output_dir
 ) {
   
   cat("Cropping land cover product(s) to study area in parallel...\n")
   flush.console()
   
-  # --- Create output directory ---
-  if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+  # ------------------------------------------------------------
+  # Basic validation (CRITICAL)
+  # ------------------------------------------------------------
+  if (length(land_cover_paths) != length(list_of_land_cover_names)) {
+    stop(
+      "❌ land_cover_paths (", length(land_cover_paths),
+      ") and list_of_land_cover_names (", length(list_of_land_cover_names),
+      ") must have the same length."
+    )
+  }
+  
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
   
   library(terra)
   library(doParallel)
   library(foreach)
   
-  # --- Detect environment and set cores ---
+  # ------------------------------------------------------------
+  # Detect environment and set cores
+  # ------------------------------------------------------------
   if (nzchar(Sys.getenv("SLURM_JOB_ID"))) {
     ncores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", unset = 1))
     cat(sprintf("  Detected SLURM environment: using %d cores\n", ncores))
@@ -25,62 +271,81 @@ cropLandCoverProduct <- function(
   }
   flush.console()
   
-  # --- Create temporary working directory ---
-  workdir <- file.path(tempdir(), "crop_temp")
-  dir.create(workdir, showWarnings = FALSE)
+  # ------------------------------------------------------------
+  # Prepare output filenames
+  # ------------------------------------------------------------
+  out_files <- file.path(
+    output_dir,
+    paste0(
+      "cropped_land_cover",
+      seq_along(list_of_land_cover_names),
+      "_",
+      list_of_land_cover_names,
+      ".tif"
+    )
+  )
   
-  # --- Load original study area ---
-  study_area <- vect(study_area_path)
-  
-  # --- Pre-project study area for each land cover raster ---
-  cat("  Pre-projecting study areas for each land cover product...\n")
-  study_area_files <- vector("character", length(land_cover_paths))
-  for (i in seq_along(land_cover_paths)) {
-    r <- rast(land_cover_paths[[i]])
-    sa_proj <- project(study_area, crs(r))
-    sa_file <- file.path(workdir, paste0("study_area_", i, ".gpkg"))
-    writeVector(sa_proj, sa_file, overwrite = TRUE)
-    study_area_files[i] <- sa_file
-  }
-  
-  # --- Setup parallel cluster ---
+  # ------------------------------------------------------------
+  # Setup parallel cluster
+  # ------------------------------------------------------------
   cl <- makeCluster(ncores, type = "PSOCK")
   registerDoParallel(cl)
   
-  # --- Worker function ---
-  f_crop <- function(raster_path, study_area_file, lc_name, out_index, output_dir) {
-    library(terra)
-    r <- rast(raster_path)
-    sa <- vect(study_area_file)
-    
-    cropped <- crop(r, sa)
-    cropped <- mask(cropped, sa)
-    
-    outname <- paste0("cropped_land_cover", out_index, "_", lc_name, ".tif")
-    outfile <- file.path(output_dir, outname)
-    writeRaster(cropped, outfile, overwrite = TRUE)
-    return(outfile)
-  }
-  
-  # --- Run crops in parallel ---
+  # ------------------------------------------------------------
+  # Run crops in parallel (terra-safe)
+  # ------------------------------------------------------------
   cat("  Running crop operations in parallel...\n")
   flush.console()
-  final_files <- foreach(i = seq_along(land_cover_paths), .combine = c) %dopar% {
-    f_crop(
-      raster_path = land_cover_paths[[i]],
-      study_area_file = study_area_files[i],
-      lc_name = list_of_land_cover_names[[i]],
-      out_index = i,
-      output_dir = output_dir
-    )
+  
+  final_files <- foreach(
+    i = seq_along(list_of_land_cover_names),
+    .packages = "terra",
+    .errorhandling = "stop"
+  ) %dopar% {
+    
+    raster_path <- land_cover_paths[[i]]
+    lc_name <- list_of_land_cover_names[i]
+    out_file <- out_files[i]
+    
+    if (!file.exists(raster_path)) {
+      stop("❌ Land-cover file not found: ", raster_path)
+    }
+    
+    # ✅ LOAD EVERYTHING INSIDE WORKER
+    r <- rast(raster_path)
+    sa <- vect(study_area_path)
+    sa_proj <- project(sa, crs(r))
+    
+    cropped <- crop(r, sa_proj)
+    cropped <- mask(cropped, sa_proj)
+    
+    writeRaster(cropped, out_file, overwrite = TRUE)
+    out_file
   }
   
   stopCluster(cl)
   
-  # --- Load cropped rasters into R ---
-  cropped_raster_list <- lapply(final_files, rast)
-  names(cropped_raster_list) <- paste0("cropped_land_cover", seq_along(list_of_land_cover_names), "_", list_of_land_cover_names)
+  # ------------------------------------------------------------
+  # Safety check
+  # ------------------------------------------------------------
+  if (length(final_files) == 0) {
+    stop(
+      "❌ No land-cover rasters were cropped.\n",
+      "Check land_cover_paths and list_of_land_cover_names."
+    )
+  }
   
-  message("\n✅ Land cover product(s) successfully cropped to study area", "\n")
+  # ------------------------------------------------------------
+  # Load cropped rasters into R
+  # ------------------------------------------------------------
+  cropped_raster_list <- lapply(final_files, rast)
+  names(cropped_raster_list) <- paste0(
+    "cropped_land_cover",
+    seq_along(list_of_land_cover_names),
+    "_",
+    list_of_land_cover_names
+  )
+  
+  message("\n✅ Land cover product(s) successfully cropped to study area\n")
   return(cropped_raster_list)
 }
