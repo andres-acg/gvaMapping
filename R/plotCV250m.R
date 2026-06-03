@@ -5,7 +5,7 @@ plotCV250m <- function(
     output_path,
     split_cv = 0.2,
     title = "Coefficient of Variation (CV)",
-    palette = c("white", "white", "darkred"),
+    palette = c("white", "darkred"),
     width = 10,
     height = 8,
     dpi = 300

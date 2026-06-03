@@ -1,65 +1,65 @@
 # ------------------------------------------------------------
 # Function to prepare Baltzer et al. plot data
 # ------------------------------------------------------------
-rawDataset1LoadORPrep <- function(formatted_dataset = NULL, 
-                                  raw_datasetA  = NULL, 
-                                  raw_datasetB  = NULL) {
-  
-  # -------------------------
-  # 1. If cover_dataset is a file path that exists, load it
-  # -------------------------
-  if (is.character(formatted_dataset) && file.exists(formatted_dataset)) {
-    if (grepl("\\.csv$", formatted_dataset, ignore.case = TRUE)) {
-      # Try read.csv first, fallback to read.csv2
-      df <- tryCatch(
-        read.csv(formatted_dataset),
-        error = function(e) {
-          message("read.csv() failed — retrying with read.csv2()...")
-          read.csv2(formatted_dataset)
-        }
-      )
-      message("cover_dataset1 successfully loaded from CSV file — available in dataset_list")
-      return(df)
-      
-    } else if (grepl("\\.xlsx?$", formatted_dataset, ignore.case = TRUE)) {
-      df <- readxl::read_excel(formatted_dataset)
-      message("cover_dataset1 successfully loaded from Excel file — available in dataset_list")
-      return(df)
-      
-    } else {
-      stop("Unsupported file type for cover_dataset1: ", formatted_dataset)
-    }
-  }
-  
-  # -------------------------
-  # 2. Otherwise, create from raw cover & site files
-  # -------------------------
-  if (is.null(formatted_dataset) && (is.null(raw_datasetA) || is.null(raw_datasetB))) {
-    stop("❌ Formatted dataset or raw file not provided or invalid for cover_dataset1 — cannot create it (nor any subsequent dataset(s) if expected). 
-    Please provide either formatted dataset path or valid raw dataset(s) path (raw dataset A only or, if it is the case, A and B).")
-  }
-  
-  df_cover <- read.csv2(raw_datasetA, header = TRUE, sep = ";")
-  df_site  <- read.csv2(raw_datasetB, header = TRUE, sep = ";")
-  
-  df_clean <- df_cover %>%
-    left_join(df_site %>% dplyr::select(plot, Lat_start, Long_start, date), by = "plot") %>%
-    rename(
-      plotID   = plot,
-      quadID   = plot.quadrat,
-      species  = attribute,
-      latitude = Lat_start,
-      longitude = Long_start,
-      sample_date = date
-    ) %>%
-    dplyr::select(plotID, quadID, species, percent, latitude, longitude, sample_date)
-  
-  #standardize data
-  df_clean$sample_date <- lubridate::ymd(df_clean$sample_date)
-  
-  message("✅ cover_dataset1 successfully created from raw dataset(s) — available in dataset_list")
-  return(df_clean)
-}
+# rawDataset1LoadORPrep <- function(formatted_dataset = NULL,
+#                                   raw_datasetA  = NULL,
+#                                   raw_datasetB  = NULL) {
+# 
+#   # -------------------------
+#   # 1. If cover_dataset is a file path that exists, load it
+#   # -------------------------
+#   if (is.character(formatted_dataset) && file.exists(formatted_dataset)) {
+#     if (grepl("\\.csv$", formatted_dataset, ignore.case = TRUE)) {
+#       # Try read.csv first, fallback to read.csv2
+#       df <- tryCatch(
+#         read.csv(formatted_dataset),
+#         error = function(e) {
+#           message("read.csv() failed — retrying with read.csv2()...")
+#           read.csv2(formatted_dataset)
+#         }
+#       )
+#       message("cover_dataset1 successfully loaded from CSV file — available in dataset_list")
+#       return(df)
+# 
+#     } else if (grepl("\\.xlsx?$", formatted_dataset, ignore.case = TRUE)) {
+#       df <- readxl::read_excel(formatted_dataset)
+#       message("cover_dataset1 successfully loaded from Excel file — available in dataset_list")
+#       return(df)
+# 
+#     } else {
+#       stop("Unsupported file type for cover_dataset1: ", formatted_dataset)
+#     }
+#   }
+# 
+#   # -------------------------
+#   # 2. Otherwise, create from raw cover & site files
+#   # -------------------------
+#   if (is.null(formatted_dataset) && (is.null(raw_datasetA) || is.null(raw_datasetB))) {
+#     stop("❌ Formatted dataset or raw file not provided or invalid for cover_dataset1 — cannot create it (nor any subsequent dataset(s) if expected).
+#     Please provide either formatted dataset path or valid raw dataset(s) path (raw dataset A only or, if it is the case, A and B).")
+#   }
+# 
+#   df_cover <- read.csv2(raw_datasetA, header = TRUE, sep = ";")
+#   df_site  <- read.csv2(raw_datasetB, header = TRUE, sep = ";")
+# 
+#   df_clean <- df_cover %>%
+#     left_join(df_site %>% dplyr::select(plot, Lat_start, Long_start, date), by = "plot") %>%
+#     rename(
+#       plotID   = plot,
+#       quadID   = plot.quadrat,
+#       species  = attribute,
+#       latitude = Lat_start,
+#       longitude = Long_start,
+#       sample_date = date
+#     ) %>%
+#     dplyr::select(plotID, quadID, species, percent, latitude, longitude, sample_date)
+# 
+#   #standardize data
+#   df_clean$sample_date <- lubridate::ymd(df_clean$sample_date)
+# 
+#   message("✅ cover_dataset1 successfully created from raw dataset(s) — available in dataset_list")
+#   return(df_clean)
+# }
 
 
 
@@ -198,11 +198,11 @@ rawDataset1LoadORPrep <- function(formatted_dataset = NULL,
 #   message("✅ cover_dataset2 successfully created from raw dataset(s) — available in dataset_list")
 #   return(df_clean)
 # }
-# 
-# 
-# 
-# 
-# 
+
+
+
+
+
 # # ------------------------------------------------------------
 # # Function to prepare NFI plot data
 # # ------------------------------------------------------------
@@ -357,6 +357,8 @@ rawDataset1LoadORPrep <- function(formatted_dataset = NULL,
 #   message("✅ cover_dataset3 successfully created from raw dataset(s) — available in dataset_list")
 #   return(df_clean)
 # }
+
+
 
 
 
@@ -556,7 +558,7 @@ rawDataset1LoadORPrep <- function(formatted_dataset = NULL,
 
 
 # ------------------------------------------------------------
-# Function to prepare LGL plot data
+# Function to prepare Deninu Kųę́ First Nation et al (2026) plot data
 # ------------------------------------------------------------
 
 raw2Dataset1LoadORPrep <- function(formatted_dataset = NULL, 
@@ -618,7 +620,7 @@ raw2Dataset1LoadORPrep <- function(formatted_dataset = NULL,
   
   # v. Rename columns to match standard format
   colnames(df_clean)[colnames(df_clean) == "Plot Number"] <- "plotID"
-  colnames(df_clean)[colnames(df_clean) == "cover - biomass  kg / ha"] <- "biomass_dens_quad"
+  colnames(df_clean)[colnames(df_clean) == "cover - biomass  kg / ha"] <- "measure_quad" #"biomass_dens_quad"
   colnames(df_clean)[colnames(df_clean) == "Date"] <- "sample_date"
   
   # vi. Make each plotID unique since there are two different plots with the same name
@@ -626,7 +628,7 @@ raw2Dataset1LoadORPrep <- function(formatted_dataset = NULL,
   
   # vii. Add missing standard columns
   df_clean$quadID <- NA
-  df_clean$species <- "Cladonia spp." # represents all species LGL collected in the field based on their report: 
+  df_clean$gva <- "Cladonia spp." #species # represents all species LGL collected in the field based on their report: 
   # https://nwtdiscoveryportal.enr.gov.nt.ca/geoportaldocuments/2021-22%20-%20FINAL%20REPORT%20-%20DKFN%20(d'Entremont)%20CIMP194.pdf
   # preferred caribou forage lichens, including Cladonia mitis, C. rangiferina, 
   # C. stellaris, C. uncialis, Cetraria islandica, and Flavocetraria nivalis.
@@ -640,10 +642,11 @@ raw2Dataset1LoadORPrep <- function(formatted_dataset = NULL,
   
   
   # viii. Reorder columns to standard order
-  df_clean <- df_clean[, c("plotID", "quadID", "species", "biomass_dens_quad", "latitude", "longitude", "sample_date")]
+  df_clean <- df_clean[, c("plotID", "quadID", "gva", "measure_quad", "latitude", "longitude", "sample_date")] #"species", "biomass_dens_quad"
   
   # vix. Return the cleaned dataset
-  message("✅ biomass_dataset2 successfully created from raw dataset(s) — available in dataset_list")
+  message("✅ dataset1 successfully created from raw dataset(s) — saved in inputs folder")
+  # message("✅ biomass_dataset2 successfully created from raw dataset(s) — available in dataset_list")
   return(df_clean)
 }
 
@@ -651,200 +654,200 @@ raw2Dataset1LoadORPrep <- function(formatted_dataset = NULL,
 
 
 # --- Helper: auto-detect datasets and validate functions/inputs ---
-autoDetectDatasets <- function(sim, type = c("raw", "raw2"), strict = TRUE) {
-  type <- match.arg(type)
-  objs <- ls(envir = sim$.mods$gvaMapping) #.GlobalEnv)
-  
-  # --- Detect dataset functions ---
-  func_pattern <- paste0("^", type, "Dataset(\\d+)LoadORPrep$")
-  func_Xs <- as.integer(sub(func_pattern, "\\1", grep(func_pattern, objs, value = TRUE)))
-  
-  # --- Detect raw and formatted datasets ---
-  raw_pattern <- paste0(type, "_dataset(\\d+)[A-Z]$")
-  formatted_pattern <- paste0("^", type, "_dataset(\\d+)$")
-  raw_Xs <- as.integer(sub(raw_pattern, "\\1", grep(raw_pattern, objs, value = TRUE)))
-  formatted_Xs <- as.integer(sub(formatted_pattern, "\\1", grep(formatted_pattern, objs, value = TRUE)))
-  
-  # --- Merge all detected dataset numbers ---
-  all_Xs <- sort(unique(c(func_Xs, raw_Xs, formatted_Xs)))
-  
-  # --- Validate functions exist for any dataset with inputs ---
-  for (X in all_Xs) {
-    func_name <- paste0(type, "Dataset", X, "LoadORPrep")
-    has_inputs <- X %in% c(raw_Xs, formatted_Xs)
-    if (has_inputs && !exists(func_name, envir = sim$.mods$gvaMapping, mode = "function")) {
-      stop(paste0("❌ Function '", func_name, "' is missing but an input was detected."))
-    }
-  }
-  
-  # --- Detect numeric gaps in the sequence ---
-  if (length(all_Xs) > 0) {
-    expected_seq <- seq(1, max(all_Xs))  # <-- always start from 1
-    missing_Xs <- setdiff(expected_seq, all_Xs)
-    
-    if (length(missing_Xs) > 0 && strict) {
-      stop(
-        paste0(
-          "⚠️ Missing function and input(s) for dataset_", type, "_",
-          paste(missing_Xs, collapse = ", ")
-        )
-      )
-    }
-  }
-  
-  # --- Handle case: no function or inputs detected at all ---
-  if (length(all_Xs) == 0) {
-    warning(paste0("🚫 No inputs or functions detected for any ", type, " dataset."))
-  }
-  
-  return(all_Xs)
-}
+# autoDetectDatasets <- function(sim, type = c("raw", "raw2"), strict = TRUE) {
+#   type <- match.arg(type)
+#   objs <- ls(envir = sim$.mods$gvaMapping) #.GlobalEnv)
+#   
+#   # --- Detect dataset functions ---
+#   func_pattern <- paste0("^", type, "Dataset(\\d+)LoadORPrep$")
+#   func_Xs <- as.integer(sub(func_pattern, "\\1", grep(func_pattern, objs, value = TRUE)))
+#   
+#   # --- Detect raw and formatted datasets ---
+#   raw_pattern <- paste0(type, "_dataset(\\d+)[A-Z]$")
+#   formatted_pattern <- paste0("^", type, "_dataset(\\d+)$")
+#   raw_Xs <- as.integer(sub(raw_pattern, "\\1", grep(raw_pattern, objs, value = TRUE)))
+#   formatted_Xs <- as.integer(sub(formatted_pattern, "\\1", grep(formatted_pattern, objs, value = TRUE)))
+#   
+#   # --- Merge all detected dataset numbers ---
+#   all_Xs <- sort(unique(c(func_Xs, raw_Xs, formatted_Xs)))
+#   
+#   # --- Validate functions exist for any dataset with inputs ---
+#   for (X in all_Xs) {
+#     func_name <- paste0(type, "Dataset", X, "LoadORPrep")
+#     has_inputs <- X %in% c(raw_Xs, formatted_Xs)
+#     if (has_inputs && !exists(func_name, envir = sim$.mods$gvaMapping, mode = "function")) {
+#       stop(paste0("❌ Function '", func_name, "' is missing but an input was detected."))
+#     }
+#   }
+#   
+#   # --- Detect numeric gaps in the sequence ---
+#   if (length(all_Xs) > 0) {
+#     expected_seq <- seq(1, max(all_Xs))  # <-- always start from 1
+#     missing_Xs <- setdiff(expected_seq, all_Xs)
+#     
+#     if (length(missing_Xs) > 0 && strict) {
+#       stop(
+#         paste0(
+#           "⚠️ Missing function and input(s) for dataset_", type, "_",
+#           paste(missing_Xs, collapse = ", ")
+#         )
+#       )
+#     }
+#   }
+#   
+#   # --- Handle case: no function or inputs detected at all ---
+#   if (length(all_Xs) == 0) {
+#     warning(paste0("🚫 No inputs or functions detected for any ", type, " dataset."))
+#   }
+#   
+#   return(all_Xs)
+# }
 
 
 
 
 #Datasetset Load or Prep wrapper function
-datasetLoadORPrep <- function(sim, type = c("raw", "raw2"), X, output_dir = "/home/ancag6/projects/def-stevec/ancag6/kfold/") {
-  type <- match.arg(type)
-  
-  # ---------------------------------------------------------------
-  # Define output directory relative to the Rproj working directory
-  # ---------------------------------------------------------------
-  if (!is.null(output_dir)) {
-    # Handle relative vs absolute paths
-    if (!grepl("^(/|[A-Za-z]:)", output_dir)) {
-      output_dir <- file.path(getwd(), output_dir)
-    }
-    if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
-  }
-  
-  # Build object and function names
-  dataset_name <- paste0(type, "_dataset", X)
-  func_name <- paste0(type, "Dataset", X, "LoadORPrep")
-  
-  # Try to get raw datasets safely
-  rawA <- if (exists(paste0(type, "_dataset", X, "A"), envir = sim))
-    get(paste0(type, "_dataset", X, "A"), envir = sim) else NULL
-  rawB <- if (exists(paste0(type, "_dataset", X, "B"), envir = sim))
-    get(paste0(type, "_dataset", X, "B"), envir = sim) else NULL
-  
-  # Try to get formatted dataset if it exists
-  existing_obj <- if (exists(dataset_name, envir = sim))
-    get(dataset_name, envir = sim) else NULL
-  
-  # Validate paths
-  rawA_path <- if (!is.null(rawA) && is.character(rawA) && length(rawA) == 1 && file.exists(rawA)) rawA else NULL
-  rawB_path <- if (!is.null(rawB) && is.character(rawB) && length(rawB) == 1 && file.exists(rawB)) rawB else NULL
-  
-  # === NEW VALIDATION BLOCK ===
-  if (is.null(existing_obj) && is.null(rawA_path) && is.null(rawB_path)) {
-    stop(paste0(
-      "❌ Missing required input(s) for ", type, " dataset ", X, ". ",
-      "Please provide either formatted dataset (", dataset_name,
-      ") path or valid raw dataset(s) path (raw_", type, "_dataset", X, "A only or, if it is the case, A and B)."
-    ))
-  }
-  
-  # Call the LoadORPrep function
-  df <- get(func_name, envir = sim$.mods$gvaMapping)(
-    formatted_dataset = existing_obj,
-    raw_datasetA = rawA_path,
-    raw_datasetB = rawB_path
-  )
-  
-  # --- Harmonize classes ---
-  df <- harmonizeDatasetStr(df, type = type)
-  
-  # --- Add extra columns only for biomass datasets ---
-  if (type == "raw2") {
-    sampling_var <- paste0("sampling_size_m2_raw2_dataset", X)
-    if (exists(sampling_var, envir = sim)) {
-      sampling_size_m2 <- get(sampling_var, envir = sim)
-      df$sampling_size_ha <- sampling_size_m2 / 10000
-      df$biomass_quad <- df$biomass_dens_quad * (sampling_size_m2 / 10000)
-      # df$biomass_dens_plot <- ave(df$biomass_dens_quad, df$plotID, FUN = mean)
-      # df$biomass_plot <- ave(df$biomass_quad, df$plotID, FUN = mean)
-    } else {
-      warning(sprintf("⚠️ Sampling unit size variable '%s' not found.", sampling_var))
-    }
-  }
-  
-  # ---------------------------------------------------------------
-  # Save the processed dataset to outputs/secondary_outputs/
-  # ---------------------------------------------------------------
-  output_file <- file.path(output_dir, paste0(dataset_name, ".csv"))
-  write.csv(df, output_file)
-  #cat(sprintf("💾 and saved at: %s\n", normalizePath(output_file)))
-  
-  return(df)
-}
+# datasetLoadORPrep <- function(sim, type = c("raw", "raw2"), X, output_dir = "/home/ancag6/projects/def-stevec/ancag6/kfold/") {
+#   type <- match.arg(type)
+#   
+#   # ---------------------------------------------------------------
+#   # Define output directory relative to the Rproj working directory
+#   # ---------------------------------------------------------------
+#   if (!is.null(output_dir)) {
+#     # Handle relative vs absolute paths
+#     if (!grepl("^(/|[A-Za-z]:)", output_dir)) {
+#       output_dir <- file.path(getwd(), output_dir)
+#     }
+#     if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+#   }
+#   
+#   # Build object and function names
+#   dataset_name <- paste0(type, "_dataset", X)
+#   func_name <- paste0(type, "Dataset", X, "LoadORPrep")
+#   
+#   # Try to get raw datasets safely
+#   rawA <- if (exists(paste0(type, "_dataset", X, "A"), envir = sim))
+#     get(paste0(type, "_dataset", X, "A"), envir = sim) else NULL
+#   rawB <- if (exists(paste0(type, "_dataset", X, "B"), envir = sim))
+#     get(paste0(type, "_dataset", X, "B"), envir = sim) else NULL
+#   
+#   # Try to get formatted dataset if it exists
+#   existing_obj <- if (exists(dataset_name, envir = sim))
+#     get(dataset_name, envir = sim) else NULL
+#   
+#   # Validate paths
+#   rawA_path <- if (!is.null(rawA) && is.character(rawA) && length(rawA) == 1 && file.exists(rawA)) rawA else NULL
+#   rawB_path <- if (!is.null(rawB) && is.character(rawB) && length(rawB) == 1 && file.exists(rawB)) rawB else NULL
+#   
+#   # === NEW VALIDATION BLOCK ===
+#   if (is.null(existing_obj) && is.null(rawA_path) && is.null(rawB_path)) {
+#     stop(paste0(
+#       "❌ Missing required input(s) for ", type, " dataset ", X, ". ",
+#       "Please provide either formatted dataset (", dataset_name,
+#       ") path or valid raw dataset(s) path (raw_", type, "_dataset", X, "A only or, if it is the case, A and B)."
+#     ))
+#   }
+#   
+#   # Call the LoadORPrep function
+#   df <- get(func_name, envir = sim$.mods$gvaMapping)(
+#     formatted_dataset = existing_obj,
+#     raw_datasetA = rawA_path,
+#     raw_datasetB = rawB_path
+#   )
+#   
+#   # --- Harmonize classes ---
+#   df <- harmonizeDatasetStr(df, type = type)
+#   
+#   # --- Add extra columns only for biomass datasets ---
+#   if (type == "raw2") {
+#     sampling_var <- paste0("sampling_size_m2_raw2_dataset", X)
+#     if (exists(sampling_var, envir = sim)) {
+#       sampling_size_m2 <- get(sampling_var, envir = sim)
+#       df$sampling_size_ha <- sampling_size_m2 / 10000
+#       df$biomass_quad <- df$biomass_dens_quad * (sampling_size_m2 / 10000)
+#       # df$biomass_dens_plot <- ave(df$biomass_dens_quad, df$plotID, FUN = mean)
+#       # df$biomass_plot <- ave(df$biomass_quad, df$plotID, FUN = mean)
+#     } else {
+#       warning(sprintf("⚠️ Sampling unit size variable '%s' not found.", sampling_var))
+#     }
+#   }
+#   
+#   # ---------------------------------------------------------------
+#   # Save the processed dataset to outputs/secondary_outputs/
+#   # ---------------------------------------------------------------
+#   output_file <- file.path(output_dir, paste0(dataset_name, ".csv"))
+#   write.csv(df, output_file)
+#   #cat(sprintf("💾 and saved at: %s\n", normalizePath(output_file)))
+#   
+#   return(df)
+# }
 
 
 
 
-# ------------------------------
-# Helper: Harmonize dataset classes
-# ------------------------------
-harmonizeDatasetStr <- function(df, type = c("raw", "raw2")) {
-  type <- match.arg(type)
-  
-  # Define expected columns and classes for each dataset type
-  expected_classes <- switch(
-    type,
-    "raw" = list(
-      plotID = "character",
-      quadID = "character",
-      species = "character",
-      percent = "numeric",
-      latitude = "numeric",
-      longitude = "numeric",
-      sample_date = "Date"
-    ),
-    "raw2" = list(
-      plotID = "character",
-      quadID = "character",
-      species = "character",
-      biomass_dens_quad = "numeric",
-      latitude = "numeric",
-      longitude = "numeric",
-      sample_date = "Date"
-    )
-  )
-  
-  # Ensure all expected columns exist
-  for (col in names(expected_classes)) {
-    if (!col %in% names(df)) {
-      df[[col]] <- NA
-    }
-  }
-  
-  # Apply conversions safely
-  df <- df %>%
-    mutate(
-      plotID = as.character(plotID),
-      quadID = if ("quadID" %in% names(df)) {
-        ifelse(is.na(quadID), NA, as.character(quadID))
-      } else NA_character_,
-      species = as.character(species),
-      latitude = as.numeric(latitude),
-      longitude = as.numeric(longitude),
-      sample_date = as.Date(sample_date)
-    ) 
-  
-  # Type-specific conversions
-  if (type == "raw" && "percent" %in% names(df))
-    df$percent <- as.numeric(df$percent)
-  
-  if (type == "raw2" && "biomass_dens_quad" %in% names(df))
-    df$biomass_dens_quad <- as.numeric(df$biomass_dens_quad)
-  
-  # Keep consistent column order
-  df <- df[, names(expected_classes), drop = FALSE]
-  
-  
-  
-  return(df)
-}
+# # ------------------------------
+# # Helper: Harmonize dataset classes
+# # ------------------------------
+# harmonizeDatasetStr <- function(df, type = c("raw", "raw2")) {
+#   type <- match.arg(type)
+#   
+#   # Define expected columns and classes for each dataset type
+#   expected_classes <- switch(
+#     type,
+#     "raw" = list(
+#       plotID = "character",
+#       quadID = "character",
+#       species = "character",
+#       percent = "numeric",
+#       latitude = "numeric",
+#       longitude = "numeric",
+#       sample_date = "Date"
+#     ),
+#     "raw2" = list(
+#       plotID = "character",
+#       quadID = "character",
+#       species = "character",
+#       biomass_dens_quad = "numeric",
+#       latitude = "numeric",
+#       longitude = "numeric",
+#       sample_date = "Date"
+#     )
+#   )
+#   
+#   # Ensure all expected columns exist
+#   for (col in names(expected_classes)) {
+#     if (!col %in% names(df)) {
+#       df[[col]] <- NA
+#     }
+#   }
+#   
+#   # Apply conversions safely
+#   df <- df %>%
+#     mutate(
+#       plotID = as.character(plotID),
+#       quadID = if ("quadID" %in% names(df)) {
+#         ifelse(is.na(quadID), NA, as.character(quadID))
+#       } else NA_character_,
+#       species = as.character(species),
+#       latitude = as.numeric(latitude),
+#       longitude = as.numeric(longitude),
+#       sample_date = as.Date(sample_date)
+#     ) 
+#   
+#   # Type-specific conversions
+#   if (type == "raw" && "percent" %in% names(df))
+#     df$percent <- as.numeric(df$percent)
+#   
+#   if (type == "raw2" && "biomass_dens_quad" %in% names(df))
+#     df$biomass_dens_quad <- as.numeric(df$biomass_dens_quad)
+#   
+#   # Keep consistent column order
+#   df <- df[, names(expected_classes), drop = FALSE]
+#   
+#   
+#   
+#   return(df)
+# }
 
 
 
@@ -866,131 +869,154 @@ harmonizeDatasetStr <- function(df, type = c("raw", "raw2")) {
 # cat("Sampling sizes for cover datasets:", paste(unlist(sim$sampling_types_raw_dataset), collapse = ", "), "\n")
 
 
+# 
+# convertCoverToBiomass <- function(data_list, sampling_sizes, output_dir = "/home/ancag6/projects/def-stevec/ancag6/kfold/") {
+#   
+#   # Ensure the output directory exists
+#   if (!is.null(output_dir)) {
+#     # Handle relative vs absolute paths
+#     if (!grepl("^(/|[A-Za-z]:)", output_dir)) {
+#       output_dir <- file.path(getwd(), output_dir)
+#     }
+#     if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+#   }
+#   
+#   # Define target species for pooled Cladonia spp.
+#   target_species <- c("mitis", "Cladmit", "MIT", "CLMI",
+#                       "arbuscula", "Cladarb", "ARB",
+#                       "rangiferina", "Cladran", "RAN", "CLRA",
+#                       "stygia", "Cladsty", "STY",
+#                       "stellaris", "Cladste", "STE", "CLST",
+#                       "uncialis", "Cladunc", "unc", "CLADUNC",
+#                       "amaurocrea", "Cladama", "AMA",
+#                       "spp.")
+#   
+#   generate_patterns <- function(species) {
+#     paste0(
+#       "(?:C\\.|Cladonia|Cladina)?\\s*",
+#       "(?i)", species,
+#       "(?:\\s+.*)?$"
+#     )
+#   }
+#   
+#   species_patterns <- sapply(target_species, generate_patterns, USE.NAMES = FALSE)
+#   final_pattern <- paste(species_patterns, collapse = "|")
+#   
+#   # Process each data frame
+#   processed_list <- mapply(function(df, sampling_size_m2, index) {
+#     df <- df %>% mutate(percent = as.numeric(percent))
+#     
+#     matched_species <- df$species[grepl(final_pattern, df$species, ignore.case = TRUE)]
+#     lichen_species <- unique(trimws(matched_species))
+#     
+#     df <- df %>%
+#       mutate(
+#         species = case_when(
+#           species %in% lichen_species ~ "Cladonia spp.",
+#           TRUE ~ "other"
+#         ),
+#         areaperaream2 = (percent / 100) * 10000,
+#         biomass_dens_quad = case_when(
+#           species == "Cladonia spp." ~ areaperaream2 * 0.06213 * 10, #Greuel & Degre-Timmons et al. 2021, pooled allometric equation for Cladonia spp. (kg/m2) multiplied by 10 to convert to kg/ha
+#           species == "other" ~ 0,
+#           TRUE ~ NA_real_
+#         )
+#       ) %>%
+#       group_by(plotID, quadID, species) %>%
+#       summarise(
+#         percent = sum(percent, na.rm = TRUE),
+#         areaperaream2 = sum(areaperaream2, na.rm = TRUE),
+#         biomass_dens_quad = sum(biomass_dens_quad, na.rm = TRUE),
+#         latitude = first(latitude),
+#         longitude = first(longitude),
+#         sample_date = first(sample_date),
+#         .groups = "drop"
+#       ) %>%
+#       ungroup() %>%
+#       group_by(plotID, quadID) %>%
+#       summarise(
+#         species = "Cladonia spp.",
+#         biomass_dens_quad = sum(biomass_dens_quad, na.rm = TRUE),
+#         latitude = first(latitude),
+#         longitude = first(longitude),
+#         sample_date = first(sample_date),
+#         sampling_size_ha = sampling_size_m2 / 10000,
+#         biomass_quad = biomass_dens_quad * sampling_size_m2 / 10000,
+#         .groups = "drop"
+#       ) %>%
+#       # group_by(plotID) %>%
+#       # mutate(
+#       #   biomass_dens_plot = mean(biomass_dens_quad, na.rm = TRUE),
+#       #   biomass_plot = mean(biomass_quad, na.rm = TRUE)
+#       # ) %>%
+#       ungroup()
+#     
+#     # --- Save result ---
+#     output_path <- file.path(output_dir, paste0("raw_dataset", index, "_converted_to_biomass.csv"))
+#     write.csv(df, output_path)
+#     
+#     #message(sprintf("✅ Saved converted dataset %d to: %s", index, output_path))
+#     
+#     return(df)
+#   }, data_list, sampling_sizes, seq_along(data_list), SIMPLIFY = FALSE)
+#   
+#   message("\n✅ Cover dataset(s) successfully converted to biomass - dataset_list updated")
+#   return(processed_list)
+# }
+# 
 
-convertCoverToBiomass <- function(data_list, sampling_sizes, output_dir = "/home/ancag6/projects/def-stevec/ancag6/kfold/") {
-  
-  # Ensure the output directory exists
-  if (!is.null(output_dir)) {
-    # Handle relative vs absolute paths
-    if (!grepl("^(/|[A-Za-z]:)", output_dir)) {
-      output_dir <- file.path(getwd(), output_dir)
-    }
-    if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
-  }
-  
-  # Define target species for pooled Cladonia spp.
-  target_species <- c("mitis", "Cladmit", "MIT", "CLMI",
-                      "arbuscula", "Cladarb", "ARB",
-                      "rangiferina", "Cladran", "RAN", "CLRA",
-                      "stygia", "Cladsty", "STY",
-                      "stellaris", "Cladste", "STE", "CLST",
-                      "uncialis", "Cladunc", "unc", "CLADUNC",
-                      "amaurocrea", "Cladama", "AMA",
-                      "spp.")
-  
-  generate_patterns <- function(species) {
-    paste0(
-      "(?:C\\.|Cladonia|Cladina)?\\s*",
-      "(?i)", species,
-      "(?:\\s+.*)?$"
-    )
-  }
-  
-  species_patterns <- sapply(target_species, generate_patterns, USE.NAMES = FALSE)
-  final_pattern <- paste(species_patterns, collapse = "|")
-  
-  # Process each data frame
-  processed_list <- mapply(function(df, sampling_size_m2, index) {
-    df <- df %>% mutate(percent = as.numeric(percent))
-    
-    matched_species <- df$species[grepl(final_pattern, df$species, ignore.case = TRUE)]
-    lichen_species <- unique(trimws(matched_species))
-    
-    df <- df %>%
-      mutate(
-        species = case_when(
-          species %in% lichen_species ~ "Cladonia spp.",
-          TRUE ~ "other"
-        ),
-        areaperaream2 = (percent / 100) * 10000,
-        biomass_dens_quad = case_when(
-          species == "Cladonia spp." ~ areaperaream2 * 0.06213 * 10, #Greuel & Degre-Timmons et al. 2021, pooled allometric equation for Cladonia spp. (kg/m2) multiplied by 10 to convert to kg/ha
-          species == "other" ~ 0,
-          TRUE ~ NA_real_
-        )
-      ) %>%
-      group_by(plotID, quadID, species) %>%
-      summarise(
-        percent = sum(percent, na.rm = TRUE),
-        areaperaream2 = sum(areaperaream2, na.rm = TRUE),
-        biomass_dens_quad = sum(biomass_dens_quad, na.rm = TRUE),
-        latitude = first(latitude),
-        longitude = first(longitude),
-        sample_date = first(sample_date),
-        .groups = "drop"
-      ) %>%
-      ungroup() %>%
-      group_by(plotID, quadID) %>%
-      summarise(
-        species = "Cladonia spp.",
-        biomass_dens_quad = sum(biomass_dens_quad, na.rm = TRUE),
-        latitude = first(latitude),
-        longitude = first(longitude),
-        sample_date = first(sample_date),
-        sampling_size_ha = sampling_size_m2 / 10000,
-        biomass_quad = biomass_dens_quad * sampling_size_m2 / 10000,
-        .groups = "drop"
-      ) %>%
-      # group_by(plotID) %>%
-      # mutate(
-      #   biomass_dens_plot = mean(biomass_dens_quad, na.rm = TRUE),
-      #   biomass_plot = mean(biomass_quad, na.rm = TRUE)
-      # ) %>%
-      ungroup()
-    
-    # --- Save result ---
-    output_path <- file.path(output_dir, paste0("raw_dataset", index, "_converted_to_biomass.csv"))
-    write.csv(df, output_path)
-    
-    #message(sprintf("✅ Saved converted dataset %d to: %s", index, output_path))
-    
-    return(df)
-  }, data_list, sampling_sizes, seq_along(data_list), SIMPLIFY = FALSE)
-  
-  message("\n✅ Cover dataset(s) successfully converted to biomass - dataset_list updated")
-  return(processed_list)
+
+###############################################################################
+###############################################################################
+##########        RAW DATASET PREPROCESSING         ############
+###############################################################################
+###############################################################################
+packages <- c("sf", "dplyr", "readxl")
+
+missing_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
+
+if(length(missing_packages) > 0) {
+  install.packages(missing_packages)
 }
 
-#####################################################################################
+# Load packages
+lapply(packages, library, character.only = TRUE)
+
+input_dir <- getOption("spades.inputPath")
+
+# COVER datasets 
+## from Baltzer et al. (2021)
+# does not work from Dryad
+
+# BIOMASS datasets
+## from Deninu Kųę́ First Nation et al. (2026)
+raw2_dataset1A_path <- "https://zenodo.org/records/20054559/files/EA3922%20Lichen%20Plot%20Data_ALL%20YEARS_SUMMARY%20BIOMASS%20three%20ways.xlsx?download=1"
+
+raw2_dataset1A <- reproducible::prepInputs(
+  url = raw2_dataset1A_path,
+  targetFile = "EA3922 Lichen Plot Data_ALL YEARS_SUMMARY BIOMASS three ways.xlsx",
+  destinationPath = input_dir,
+  fun = NA,
+  overwrite = TRUE
+)
 
 
+dataset1 <- raw2Dataset1LoadORPrep(raw_datasetA = raw2_dataset1A)
+
+#save dataset1 in inputObjects
+
+dataset_dir <- file.path(input_dir, "datasets", "dataset1")
+
+# create folder if needed
+dir.create(dataset_dir, recursive = TRUE, showWarnings = FALSE)
+
+# write file
+write.csv(
+  dataset1,
+  file = file.path(dataset_dir, "dataset1_formatted.csv"),
+  row.names = FALSE
+)
 
 
-# 
-# dataset_list <- setNames(
-#   lapply(c("raw", "raw2"), function(type) {
-#     # Automatically detect datasets and validate existence of functions/inputs
-#     X_vals <- autoDetectDatasets(type)
-#     
-#     if (length(X_vals)) {
-#       setNames(
-#         lapply(X_vals, function(x) datasetLoadORPrep(type, x)),
-#         paste0(type, "_dataset", X_vals)
-#       )
-#     }
-#   }),
-#   c("raw_dataset_list", "raw2_dataset_list")
-# )
-# 
-# dataset_list <- dataset_list
-# 
-# # 3.2 CONVERT COVER INTO BIOMASS (for cover datasets)
-# 
-# if (!is.null(dataset_list$raw_dataset_list) &&
-#     length(dataset_list$raw_dataset_list) > 0) {
-#   
-#   dataset_list$raw_dataset_list <- convertCoverToBiomass(
-#     dataset_list$raw_dataset_list,
-#     sim$sampling_types_raw_dataset
-#   )
-# }
+rm("dataset1", "raw2_dataset1A", "raw2_dataset1A_path", "input_dir",
+   "missing_packages", "packages", "raw2Dataset1LoadORPrep")

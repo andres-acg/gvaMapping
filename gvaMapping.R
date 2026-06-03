@@ -172,15 +172,27 @@ doEvent.gvaMapping = function(sim, eventTime, eventType) {
 
 Init <- function(sim) {
 
-  
   # SpaDES-managed module output directory
-  module_output_dir <- file.path(sim$base_folder, "outputs")
+  module_output_dir <- file.path(getOption("spades.outputPath"), "gvaMapping")
   
-  if (!dir.exists(module_output_dir)) {
-    dir.create(module_output_dir, recursive = TRUE)
-  }
+  
+  #Loading inputs
+  #datasets:
+  sim$dataset_list <- loadDatasets(sim$dataset_list)
+  
+  #study area:
+  sim$study_area_path <- loadStudyArea(sim$study_area_path)
+  
+  #land cover products:
+  sim$land_cover_paths <- loadLandCovers(sim$land_cover_paths)
+  
+  #disturbances:
+  sim$disturbances_path <- loadDisturbances(sim$disturbances_path)
+ 
+ 
 
-    
+  
+  
 ################################################################################  
 #####                       STEP1 : Data preparation                      ######
 ################################################################################  
@@ -202,7 +214,6 @@ Init <- function(sim) {
   )
  
 
- 
  # FILTER PLOTS WITHIN STUDY AREA
 
  #study_area_path <- sim$study_area_path
@@ -214,7 +225,7 @@ Init <- function(sim) {
 
  # FILTER PLOTS BASED ON DISTURBANCE (OPTIONAL)
 
- if (file.exists(sim$disturbances_path)) {
+ if (!is.na(sim$disturbances_path) && file.exists(sim$disturbances_path)) {
 
    sim$dataset_list <- keepUndisturbedPlots(
      dataset_list      = sim$dataset_list,
@@ -904,12 +915,30 @@ classProportionChart(
  
  water_raster_file <- file.path(water_raster_dir, "water_mask_250m.tif")
  
+ # ------------------------------------------------------------
+ # Use CROPPED land-cover rasters (critical fix ✅)
+ # ------------------------------------------------------------
+ cropped_lc_dir <- file.path(module_output_dir, "cropped_land_cover_products")
+ 
+ land_cover_paths_cropped <- list.files(
+   path = cropped_lc_dir,
+   pattern = "\\.tif$",
+   recursive = TRUE,
+   full.names = TRUE
+ )
+ 
+ # Ensure it is a list (required by function)
+ land_cover_paths_cropped <- as.list(land_cover_paths_cropped)
+ 
+ # ------------------------------------------------------------
+ # Create water raster only if needed
+ # ------------------------------------------------------------
  if (!file.exists(water_raster_file)) {
    
    message("🌊 Water raster not found — creating water raster (250 m)...")
    
    sim$water_raster_path <- createWaterRaster250m(
-     land_cover_paths   = sim$land_cover_paths,
+     land_cover_paths   = land_cover_paths_cropped,
      water_classes_list = P(sim)$water_classes_list,
      output_dir         = water_raster_dir,
      target_res         = 250
@@ -923,6 +952,7 @@ classProportionChart(
  }
  
  message("\n🗺 Plotting 250 m GVA rasters...")
+ 
 
  # ------------------------------------------------------------------
  # Directories
@@ -1023,194 +1053,6 @@ classProportionChart(
 }
   
 
-## ENABLE THE .inputObjects below and add input data paths to the sim object. 
-# This is where you can specify the paths to your input datasets, study area shapefile, land cover products, 
-# and disturbance data. Make sure to replace the placeholder paths with the actual paths to your data files.
-
-# .inputObjects <- function(sim) {
-
- ###############################################################################
- ##########                    MODULE INPUTS                        ############
- ###############################################################################
-#   #plot datasets
-#   sim$dataset1  <- "...path to dataset1.csv..."                      # (csv format)
-#   #sim$dataset2 <- "...path to dataset2.csv..."                      # (csv format)
-#   
-
-#   #study area
-#   sim$study_area_path <- "...path to study_area.shp shapefile..."    # (shp format)
-#   
-#   #land cover products
-#   sim$land_cover1_path <- "...path to land_cover1.tif raster..."     #(tif format)
-#   #sim$land_cover2_path <- "...path to land_cover2.tif raster..."    #(tif format)
-#   #sim$land_cover3_path <- "...path to land_cover3.tif raster..."    #(tif format)
-#   
-#   #disturbances
-#   sim$disturbances_path <- "...path to disturbance.shp shapefile..." #(shp format)
-#   
-#   
-#   return(invisible(sim))
-# }
-
-
-
-
-.inputObjects <- function(sim) {
-  
-   
-  sim$base_folder <- "C:/Users/ANCAG6/OneDrive - Université Laval/LICHEN_project/paper1/SpaDES_version/gvaMapping"
-  base_folder <- sim$base_folder
-
-  ###############################################################################
-  ##########        COVER AND BIOMASS DATASETS PREPROCESSING         ############
-  ###############################################################################
-
-  # COVER datasets
-  
-  sim$raw_dataset1A <- file.path(base_folder, "data", "plot_datasets", "cover_datasets",
-                                 "cover_dataset1 - Baltzer et al",
-                                 "Chronosequence quadrat covers_2016_2017_2018_2019-02-11.v2.csv") #GET LINK
-
-  sim$raw_dataset1B <- file.path(base_folder, "data", "plot_datasets", "cover_datasets",
-                                 "cover_dataset1 - Baltzer et al",
-                                 "All site info 2019-10-16.csv") #GET LINK
-
-  # sim$raw_dataset2A <- file.path(base_folder, "data", "plot_datasets", "cover_datasets",
-  #                                "cover_dataset2 - Errington et al",
-  #                                "lichen dataset for Andres.xlsx")
-  # 
-  # sim$raw_dataset2B <- sim$raw_dataset2A
-
-  # sim$raw_dataset3A <- file.path(base_folder, "data", "plot_datasets", "cover_datasets",
-  #                                "cover_dataset3 - NFI",
-  #                                "all_gp_ecp_species.csv")
-  # 
-  # sim$raw_dataset3B <- file.path(base_folder, "data", "plot_datasets", "cover_datasets",
-  #                                "cover_dataset3 - NFI",
-  #                                "all_gp_site_info_approx_loc.csv")
-
-  # BIOMASS datasets
-  # sim$raw2_dataset1A <- file.path(base_folder, "data", "plot_datasets", "biomass_datasets",
-  #                                 "biomass_dataset1 - Cook et al",
-  #                                 "ForageBiomass_NWT_20162019.xlsx")
-  # 
-  # sim$raw2_dataset1B <- file.path(base_folder, "data", "plot_datasets", "biomass_datasets",
-  #                                 "biomass_dataset1 - Cook et al",
-  #                                 "PenCharacteristics_NWTCaribou_Location fixes added_red__FM_for Genev_Mar 2022.xlsx")
-
-  sim$raw2_dataset1A <- file.path(base_folder, "data", "plot_datasets", "biomass_datasets",
-                                  "biomass_dataset2 - LGL",
-                                  "EA3922 Lichen Plot Data_ALL YEARS_SUMMARY BIOMASS three ways.xlsx") #GET LINK
-  
-
-  # sampling size for each dataset to weight mean calculation - in m2
-  sim$sampling_size_m2_raw_dataset1 <- P(sim)$sampling_size_m2[1] #1 #cover biomass dataset 1
-  #sim$sampling_size_m2_raw_dataset2 <- P(sim)$sampling_size_m2[2] #1 #cover biomass dataset 2
-  #sim$sampling_size_m2_raw_dataset3 <- P(sim)$sampling_size_m2[3] #100 #cover biomass dataset 3
-  #sim$sampling_size_m2_raw2_dataset1 <- P(sim)$sampling_size_m2[4] #2  #raw biomass dataset 1
-  sim$sampling_size_m2_raw2_dataset1 <- P(sim)$sampling_size_m2[2] #0.25 #raw biomass dataset 2
-  
-  
-  sim$sampling_type_names_raw_dataset <- grep("^sampling_size_m2_raw_dataset\\d+$",ls(envir = sim), value = TRUE)
-  
-  sim$sampling_types_raw_dataset <- mget(sim$sampling_type_names_raw_dataset, envir = as.environment(sim))
-  
-  cat(
-    "Sampling size variables detected:",
-    paste(sim$sampling_type_names_raw_dataset, collapse = ", "),
-    "\n"
-  )
-  
-  # COVER AND BIOMASS PLOT DATASETS CLEANING AND PREPARATION
-  
-  dataset_list <- setNames(
-    lapply(c("raw", "raw2"), function(type) {
-      # Automatically detect datasets and validate existence of functions/inputs
-      X_vals <- autoDetectDatasets(sim, type)
-      
-      if (length(X_vals)) {
-        setNames(
-          lapply(X_vals, function(x) datasetLoadORPrep(sim, type, x)),
-          paste0(type, "_dataset", X_vals)
-        )
-      }
-    }),
-    c("raw_dataset_list", "raw2_dataset_list")
-  )
-  
-  
-  # CONVERT COVER INTO BIOMASS (for cover datasets)
-  
-  if (!is.null(dataset_list$raw_dataset_list) &&
-      length(dataset_list$raw_dataset_list) > 0) {
-    
-    dataset_list$raw_dataset_list <- convertCoverToBiomass(
-      dataset_list$raw_dataset_list,
-      sim$sampling_types_raw_dataset
-    )
-  }
-  
-
-  dataset_list <- unlist(dataset_list, recursive = FALSE)
-  
-  sim$dataset_list <- lapply(dataset_list, function(df) {
-    df %>%
-      rename(
-        gva = species,
-        measure_quad = biomass_dens_quad,
-      )  %>%
-      dplyr::select(
-       -biomass_quad,
-       -sampling_size_ha
-     )
-  })
-  
- 
-    
-  ###############################################################################
-  ##########                    MODULE INPUTS                        ############
-  ###############################################################################
-  
-  
-  # PLOT DATASETS
-  # sim$dataset1 <- dataset_list[[1]]
-  # sim$dataset2 <- dataset_list[[2]]
-  # sim$dataset3 <- dataset_list[[3]]
-  # sim$dataset4 <- dataset_list[[4]]
-  # sim$dataset5 <- dataset_list[[5]]
-  # 
- 
-  # STUDY AREA
-  sim$study_area_path <- file.path(base_folder, "data", "study_area", "southernNWT_Wekeezhii.shp")  #GET LINK AND FILTER STUDY AREA IN THE FUNCTION IN CASE OF PROBLEMS WITH THE SHAPEFILE
-  
-  # LAND COVER PRODUCT(S)
-  #sim$land_cover1_path <- file.path(base_folder, "data", "land_cover_products", "southernNWT_Wekeezhii_mvi.tif") #NO LINK
-  # sim$land_cover1_path <- file.path(base_folder, "data", "land_cover_products", "southernNWT_Wekeezhii_lcc10.tif") #GET LINK
-  # sim$land_cover2_path <- file.path(base_folder, "data", "land_cover_products", "southernNWT_Wekeezhii_ABoVE.tif") #GET LINK FROM ALL TILES AND PROCESS THEM HERE
-  # sim$land_cover3_path <- file.path(base_folder, "data", "land_cover_products", "southernNWT_Wekeezhii_ntems.tif") #GET LINK
-  
-  sim$land_cover_paths <- list(
-    land_cover1_path  = file.path(base_folder, "data", "land_cover_products",
-                       "southernNWT_Wekeezhii_lcc10.tif"),
-    land_cover2_path  = file.path(base_folder, "data", "land_cover_products",
-                       "southernNWT_Wekeezhii_ABoVE.tif"),
-    land_cover3_path  = file.path(base_folder, "data", "land_cover_products",
-                       "southernNWT_Wekeezhii_ntems.tif")
-  )
-  
-  # DISTURBANCES (optional)
-  sim$disturbances_path <- file.path(base_folder, "data", "disturbances_(optional)", "NFDB_poly_20210707.shp") #GET LINK
-  
-  
-  # #water layer for maps
-  # if (!suppliedElsewhere("water_raster_path", sim)) {
-  # sim$water_raster_path <- file.path(base_folder, "data", "water_union_250m.tif")
-  # }
-  
-  
-  
-  return(invisible(sim))
-}
 
 
 
