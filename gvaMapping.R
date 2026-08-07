@@ -101,9 +101,29 @@ defineModule(sim, list(
     #SEED
     #seed parameter for reproducibility of results (e.g., in cross-validation)
     defineParameter("seed", "numeric", 81, NA, NA,
-                    "seed for reproducibility of results (e.g., in cross-validation)")
-  
-    
+                    "seed for reproducibility of results (e.g., in cross-validation)"),
+
+    #OUTPUT DIRECTORY
+    defineParameter("gva_output_dir", "character", NA, NA, NA,
+                    "Directory where all gvaMapping outputs are written, and where the
+                     module looks for already-computed intermediate products before
+                     recomputing them. Defaults to
+                     file.path(getOption('spades.outputPath'), 'gvaMapping').
+                     Set this to a location SHARED between several SpaDES projects (for
+                     example the several years of a backcasting run) when the class means
+                     are year-independent: the module then computes everything on the
+                     first run and, on every later run, finds its own files and skips the
+                     expensive steps."),
+
+    #CROSS-VALIDATION
+    defineParameter("run_cross_validation", "logical", TRUE, NA, NA,
+                    "If FALSE, skip the k-fold cross-validation of the gva rasters
+                     (STEP 4). Only honoured when a single land cover product is supplied
+                     -- with more than one product the SMAPE values are needed to weight
+                     the ensemble map, so the cross-validation is always run. Use FALSE
+                     when only the class-mean table is needed.")
+
+
 ),
   
   inputObjects = bindrows(
@@ -172,10 +192,22 @@ doEvent.gvaMapping = function(sim, eventTime, eventType) {
 
 Init <- function(sim) {
 
-  # SpaDES-managed module output directory
-  module_output_dir <- file.path(getOption("spades.outputPath"), "gvaMapping")
-  
-  
+  # Module output directory.
+  # By default it is SpaDES-managed (inside this project's outputPath). It can be
+  # redirected with the `gva_output_dir` parameter so that several projects -- e.g.
+  # the successive years of a backcasting run -- share one set of outputs. Because
+  # every expensive step below is guarded by a file-existence check against this
+  # directory, pointing several runs at the same folder means the work is done once
+  # and reused afterwards.
+  module_output_dir <- P(sim)$gva_output_dir
+  if (is.null(module_output_dir) || length(module_output_dir) != 1L ||
+      is.na(module_output_dir) || !nzchar(module_output_dir)) {
+    module_output_dir <- file.path(getOption("spades.outputPath"), "gvaMapping")
+  }
+  dir.create(module_output_dir, recursive = TRUE, showWarnings = FALSE)
+  message("📂 gvaMapping output directory: ", module_output_dir)
+
+
   #Loading inputs
   #datasets:
   sim$dataset_list <- loadDatasets(sim$dataset_list)
@@ -533,6 +565,19 @@ classProportionChart(
 #####           STEP4 : 10-FOLD CROSS-VALIDATION - GVA RASTERS            ######
 ################################################################################
 
+ # The ensemble map (STEP5) weights the land cover products by their SMAPE, so the
+ # cross-validation can only be skipped when there is a single product.
+ run_cv <- isTRUE(P(sim)$run_cross_validation) ||
+           length(P(sim)$list_of_land_cover_names) > 1
+
+ if (!run_cv) {
+
+   message("⏭️  run_cross_validation = FALSE and a single land cover product — ",
+           "skipping the k-fold cross-validation.")
+   sim$smape_results <- NULL
+
+ } else {
+
  sim$smape_results <- runGVARastersKFoldCrossValidation(
    dataset_list = sim$dataset_list,
    class_proportions_list = sim$class_proportions_list,
@@ -549,6 +594,8 @@ classProportionChart(
    measure_name = P(sim)$measure_name,
    unit = P(sim)$unit
 )
+
+ }
 
 
  ################################################################################
@@ -977,9 +1024,17 @@ classProportionChart(
    full.names = TRUE
  )
 
+ # The 250 m aligned rasters are only produced when more than one land cover
+ # product is supplied (they exist so that several products can be compared on a
+ # common grid). With a single product there is nothing to align, so there is
+ # nothing to plot here either -- that is not an error.
  if (length(gva_250m_files) == 0) {
-   stop("❌ No 250 m aligned GVA rasters found in: ", visual_gva_dir)
- }
+
+   message("ℹ️ No 250 m aligned GVA rasters found in:\n  ", visual_gva_dir,
+           "\n   This is expected when a single land cover product is used — ",
+           "skipping the 250 m map figures.")
+
+ } else {
 
  # ------------------------------------------------------------------
  # Build colour-scale rasters (include ensemble ONLY if it exists)
@@ -1037,16 +1092,25 @@ classProportionChart(
 
  message("✅ All available GVA maps plotted successfully.\n")
 
+ }   # end of "there are 250 m aligned rasters to plot"
+
  #plot CV RASTER
- message("Plotting CV map....\n")
- plotCV250m(
-   cv_raster_path     = sim$cv_raster_path,
-   study_area_path    = sim$study_area_path,
-   water_raster_path  = sim$water_raster_path,
-   output_path        = file.path(fig_dir, "map_cv_gva_250m.png"),
-   split_cv           = 0.2,
-   title              = "Coefficient of Variation (250 m)"
- )
+ # The CV raster only exists when > 1 land cover product was supplied.
+ if (!is.null(sim$cv_raster_path) && file.exists(sim$cv_raster_path)) {
+
+   message("Plotting CV map....\n")
+   plotCV250m(
+     cv_raster_path     = sim$cv_raster_path,
+     study_area_path    = sim$study_area_path,
+     water_raster_path  = sim$water_raster_path,
+     output_path        = file.path(fig_dir, "map_cv_gva_250m.png"),
+     split_cv           = 0.2,
+     title              = "Coefficient of Variation (250 m)"
+   )
+
+ } else {
+   message("ℹ️ No CV raster (a single land cover product) — skipping the CV map.")
+ }
 
 
   return(invisible(sim))
