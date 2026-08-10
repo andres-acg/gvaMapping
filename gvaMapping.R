@@ -480,6 +480,12 @@ classProportionChart(
 
  # Directory where gva rasters are stored
  gva_raster_dir <- file.path(module_output_dir, "gva_rasters")
+ # Defined here, unconditionally, rather than only inside the "needs alignment"
+ # branch below: STEP5 reads it whenever >1 land cover product is CONFIGURED,
+ # while that branch is entered based on how many .tif files are actually on
+ # disk. Those two conditions can disagree (e.g. a partially written output
+ # folder), which would leave aligned_raster_dir undefined at its point of use.
+ aligned_raster_dir <- file.path(module_output_dir, "aligned_gva_rasters")
  # Check which land cover gva rasters are missing
  missing_gva_raster <- vector()
  for (lc_name in P(sim)$list_of_land_cover_names) {
@@ -531,8 +537,8 @@ classProportionChart(
  } else {
 
 
- # Directory where aligned biomass rasters are stored
- aligned_raster_dir <- file.path(module_output_dir, "aligned_gva_rasters")
+ # (aligned_raster_dir is now defined unconditionally further up, next to
+ # gva_raster_dir -- see the note there.)
  # Check which aligned rasters are missing
  missing_aligned_raster <- vector()
  for (lc_name in P(sim)$list_of_land_cover_names) {
@@ -596,6 +602,92 @@ classProportionChart(
 )
 
  }
+
+
+ ################################################################################
+ ##### STEP4b : RESAMPLE GVA RASTERS TO 250 m (FOR VISUALIZATION)          ######
+ ################################################################################
+ ## Moved OUT of the STEP5 "> 1 land cover product" branch below. It has to run
+ ## for any number of products, because `visual_gva_dir` is assigned to
+ ## sim$gva_rasters_250m_dir AFTER that branch closes -- leaving it undefined in
+ ## the single-product case is what produced "object 'visual_gva_dir' not found".
+ ##
+ ## Source directory depends on how many products there are: with several, STEP3
+ ## has written an aligned stack to aligned_gva_rasters/; with a single product
+ ## there is nothing to align, so the raster STEP2 wrote to gva_rasters/ is used
+ ## directly. That way a single-product run still gets its 250 m map.
+
+ message("\n\U0001F5FA Resampling GVA rasters to 250 m for visualization...")
+
+ # Input: full-resolution GVA rasters (the aligned ones when there are several)
+ if (length(P(sim)$list_of_land_cover_names) > 1) {
+   aligned_gva_dir <- file.path(module_output_dir, "aligned_gva_rasters")
+ } else {
+   aligned_gva_dir <- file.path(module_output_dir, "gva_rasters")
+ }
+
+ # Output: 250 m visualization rasters
+ visual_gva_dir <- file.path(module_output_dir, "aligned_gva_rasters_250m")
+ dir.create(visual_gva_dir, recursive = TRUE, showWarnings = FALSE)
+
+ # List the GVA rasters to aggregate
+ gva_files <- list.files(
+   aligned_gva_dir,
+   pattern = "\\.tif$",
+   full.names = TRUE
+ )
+
+ # Expected 250 m filenames
+ gva_files_250m <- file.path(
+   visual_gva_dir,
+   paste0("250m_", basename(gva_files))
+ )
+
+ if (length(gva_files) == 0) {
+
+   message("\u2139\uFE0F No GVA rasters found in:\n  ", aligned_gva_dir,
+           "\n   Skipping the 250 m resampling step.")
+
+ } else if (!all(file.exists(gva_files_250m))) {
+
+   message("\U0001F504 Creating 250 m GVA rasters (mean aggregation)...")
+
+   for (i in seq_along(gva_files)) {
+
+     gva_r <- terra::rast(gva_files[i])
+
+     # Compute aggregation factor
+     # Assumes original raster is in meters and resolution divides 250 exactly
+     fact <- round(250 / terra::res(gva_r)[1])
+
+     if (fact < 1) {
+       stop("Original raster resolution is already coarser than 250 m.")
+     }
+
+     # Aggregate (mean for continuous variables)
+     gva_250 <- terra::aggregate(
+       gva_r,
+       fact = fact,
+       fun = mean,
+       na.rm = TRUE
+     )
+
+     terra::writeRaster(
+       gva_250,
+       gva_files_250m[i],
+       overwrite = TRUE,
+       wopt = list(gdal = c("COMPRESS=DEFLATE", "TILED=YES"))
+     )
+   }
+
+   message("\u2705 250 m visualization rasters created.")
+
+ } else {
+
+   message("\u2705 250 m visualization rasters already exist \u2014 skipping.")
+ }
+
+ gva_250m_files <- gva_files_250m
 
 
  ################################################################################
@@ -743,75 +835,6 @@ classProportionChart(
    holdout_ratio = 0.3
  )
 
- #RESAMPLE ALIGNED GVA RASTER TO 250 FOR VISUALIZATION
- ################################################################################
- ##### STEP : RESAMPLE ALIGNED GVA RASTERS TO 250 m (FOR VISUALIZATION)
- ################################################################################
-
- message("\n🗺 Resampling aligned GVA rasters to 250 m for visualization...")
-
- # Input: full-resolution aligned GVA rasters
- aligned_gva_dir <- file.path(module_output_dir, "aligned_gva_rasters")
-
- # Output: 250 m visualization rasters
- visual_gva_dir <- file.path(module_output_dir, "aligned_gva_rasters_250m")
- dir.create(visual_gva_dir, recursive = TRUE, showWarnings = FALSE)
-
- # List aligned GVA rasters
- gva_files <- list.files(
-   aligned_gva_dir,
-   pattern = "\\.tif$",
-   full.names = TRUE
- )
-
- # Expected 250 m filenames
- gva_files_250m <- file.path(
-   visual_gva_dir,
-   paste0("250m_", basename(gva_files))
- )
-
- # Only resample if missing
- if (!all(file.exists(gva_files_250m))) {
-
-   message("🔄 Creating 250 m GVA rasters (mean aggregation)...")
-
-   for (i in seq_along(gva_files)) {
-
-     gva_r <- terra::rast(gva_files[i])
-
-     # Compute aggregation factor
-     # Assumes original raster is in meters and resolution divides 250 exactly
-     fact <- round(250 / terra::res(gva_r)[1])
-
-     if (fact < 1) {
-       stop("Original raster resolution is already coarser than 250 m.")
-     }
-
-     # Aggregate (mean for continuous variables)
-     gva_250 <- terra::aggregate(
-       gva_r,
-       fact = fact,
-       fun = mean,
-       na.rm = TRUE
-     )
-
-     terra::writeRaster(
-       gva_250,
-       gva_files_250m[i],
-       overwrite = TRUE,
-       wopt = list(gdal = c("COMPRESS=DEFLATE", "TILED=YES"))
-     )
-   }
-
-
-   message("✅ 250 m visualization rasters created.")
-
- } else {
-
-   message("✅ 250 m visualization rasters already exist — skipping.")
- }
-
- gva_250m_files <- gva_files_250m
 
  ################################################################################
  ##### WALL-TO-WALL ENSEMBLE RASTER (250 m, for visualization)
@@ -825,11 +848,15 @@ classProportionChart(
    "full_ensemble_gva_250m.tif"
  )
 
- if (!file.exists(ensemble_full_path)) {
+ if (length(gva_250m_files) == 0) {
+
+   message("ℹ️ No 250 m GVA rasters were produced — skipping the 250 m ensemble.")
+
+ } else if (!file.exists(ensemble_full_path)) {
 
    message("🧮 Computing 250 m visualization ensemble from aggregated products")
 
-   # ✅ gva_250m_files must exist at this point
+   # gva_250m_files are the paths STEP4b constructed; non-empty by the check above
    rasters_stack_250m <- terra::rast(gva_250m_files)
 
    #stopifnot(all(names(rasters_stack_250m) %in% names(weights)))
@@ -1024,15 +1051,13 @@ classProportionChart(
    full.names = TRUE
  )
 
- # The 250 m aligned rasters are only produced when more than one land cover
- # product is supplied (they exist so that several products can be compared on a
- # common grid). With a single product there is nothing to align, so there is
- # nothing to plot here either -- that is not an error.
+ # STEP4b now produces these for any number of land cover products (single
+ # product included), so normally this folder is populated. An empty folder is
+ # still tolerated rather than fatal -- e.g. if STEP2 wrote no GVA raster at all.
  if (length(gva_250m_files) == 0) {
 
-   message("ℹ️ No 250 m aligned GVA rasters found in:\n  ", visual_gva_dir,
-           "\n   This is expected when a single land cover product is used — ",
-           "skipping the 250 m map figures.")
+   message("ℹ️ No 250 m GVA rasters found in:\n  ", visual_gva_dir,
+           "\n   Nothing to plot — skipping the 250 m map figures.")
 
  } else {
 
