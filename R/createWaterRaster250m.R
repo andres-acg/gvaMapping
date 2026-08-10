@@ -56,8 +56,11 @@ createWaterRaster250m <- function(
     r <- rast(r_path)
     template <- rast(template_path)
     
-    if (!compareGeom(template, r, stopOnError = FALSE)) {
-      r <- resample(r, template, method = "near")
+    # terra:: qualified deliberately -- see the note on the resample() call in
+    # STEP 4 below. Harmless here (this runs in a PSOCK worker that only loads
+    # terra), but kept consistent so the hazard isn't reintroduced by copy-paste.
+    if (!terra::compareGeom(template, r, stopOnError = FALSE)) {
+      r <- terra::resample(r, template, method = "near")
     }
     crs(r) <- crs(template)
     
@@ -121,7 +124,12 @@ createWaterRaster250m <- function(
     na.rm = TRUE
   )
   
-  water_250m <- resample(
+  # MUST be terra::resample, not bare resample(). This runs in the main R
+  # session, where R.utils is attached AFTER terra and masks terra's resample
+  # with its own resample(x, size, ...) -- a sample() helper. The bare call then
+  # became sample.int(length(x), template_250m, method = "near"), which failed
+  # with 'unused argument (method = "near")' reported against `[`.
+  water_250m <- terra::resample(
     water_agg,
     template_250m,
     method = "near"
