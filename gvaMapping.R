@@ -398,8 +398,18 @@ Init <- function(sim) {
 
  # FILTER PLOTS WITHIN STUDY AREA
 
+ # 2026-08-14: wrapped in Cache(), matching every other expensive step in
+ # this module (see "every expensive step below is guarded" comment above
+ # module_output_dir). This one and keepUndisturbedPlots() just below were
+ # the two steps that comment didn't actually describe correctly -- they
+ # recomputed every backcast year even though study_area_path, dataset_list
+ # and disturbances_path/land_cover_year never change across years for this
+ # project, wasting a full spatial intersection each time. Cache() (rather
+ # than a hand-rolled file.exists() guard like the neighbouring steps use)
+ # so it also self-invalidates if the field data, study area, or fire
+ # database are ever revised later -- see PROJECT_NOTES.md, 2026-08-14.
  #study_area_path <- sim$study_area_path
- sim$dataset_list <- filterPlotsStudyArea(sim$dataset_list,
+ sim$dataset_list <- Cache(filterPlotsStudyArea, sim$dataset_list,
                                           sim$study_area_path,
                                           output_dir = file.path(module_output_dir, "filtered_plots_study_area")
                                           )
@@ -409,7 +419,7 @@ Init <- function(sim) {
 
  if (!is.na(sim$disturbances_path) && file.exists(sim$disturbances_path)) {
 
-   sim$dataset_list <- keepUndisturbedPlots(
+   sim$dataset_list <- Cache(keepUndisturbedPlots,
      dataset_list      = sim$dataset_list,
      disturbances_path = sim$disturbances_path,
      land_cover_year   = P(sim)$land_cover_year,
