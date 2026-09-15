@@ -409,11 +409,30 @@ loadAndPrepRawDataset1 <- function(
     epsg_code = 32611) {
 
   if (grepl("^https?://", raw_datasetA)) {
+    datasetURL   <- raw_datasetA
     raw_datasetA <- reproducible::prepInputs(
-      url = raw_datasetA,
-      targetFile = basename(sub("\\?.*$", "", raw_datasetA)),
+      url = datasetURL,
+      targetFile = basename(sub("\\?.*$", "", datasetURL)),
       destinationPath = file.path(getOption("spades.inputPath"), "datasets", "dataset1"),
       fun = NA, overwrite = FALSE)
+
+    # On some networks (e.g. behind a corporate SSL-inspecting proxy),
+    # reproducible's httr2/curl-based download can silently return a
+    # corrupted file (extra/mangled bytes break the .xlsx zip container even
+    # though the download itself "succeeds"). Verify the file actually
+    # opens and, if it doesn't, re-download it directly with
+    # utils::download.file() -- which goes through the OS's own networking
+    # stack (wininet on Windows) and has been confirmed to work in exactly
+    # this situation -- as a fallback.
+    fileReadable <- tryCatch({
+      readxl::read_excel(raw_datasetA, n_max = 1)
+      TRUE
+    }, error = function(e) FALSE)
+    if (!fileReadable) {
+      message("dataset1: downloaded file at ", raw_datasetA, " could not be opened ",
+              "(likely corrupted in transit) -- retrying with a direct download.file() call.")
+      utils::download.file(datasetURL, destfile = raw_datasetA, mode = "wb")
+    }
   }
 
   df <- readxl::read_excel(raw_datasetA)
