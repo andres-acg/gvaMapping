@@ -1,8 +1,16 @@
 # gvaMapping
 
+<<<<<<< HEAD
 A [SpaDES](https://spades.predictiveecology.org/) module that estimates mean **ground vegetation attribute (GVA)** values — in this project, reindeer lichen (*Cladonia* spp.) biomass — per land cover class, from field plot data and a land cover product. The resulting class-mean table is the direct input to the [`WB_LichenBiomass`](https://github.com/andres-acg/WB_LichenBiomass) module, which applies it across a full landscape raster.
 
 Part of a backcasting/forecasting workflow for lichen biomass and caribou habitat in the Wek'èezhìi region, Northwest Territories, developed for Andres Caseiro Guilhem's PhD thesis (Université Laval).
+=======
+A [SpaDES](https://spades.predictiveecology.org/) module that maps mean **ground vegetation attribute (GVA)** values per land cover class, from field plot data and one or more land cover products. gvaMapping is a generic tool: it isn't tied to any particular vegetation attribute, species, or region. It's meant to be straightforward to use — supply your plot data (raw or already formatted), land cover product(s), study area, and a handful of parameters, and the module does the rest (see "Inputs" and "Key parameters" below).
+
+## Example application: lichen biomass in the Wek'èezhìi region
+
+This copy of the module was developed for a specific application: estimating mean reindeer lichen (*Cladonia* spp.) biomass per land cover class, as part of a backcasting/forecasting workflow for lichen biomass and caribou habitat in the Wek'èezhìi region, Northwest Territories, developed for Andres Caseiro Guilhem's PhD thesis (Université Laval). The resulting class-mean table is the direct input to the [`WB_LichenBiomass`](https://github.com/andres-acg/WB_LichenBiomass) module, which applies it across a full landscape raster. The defaults documented below (datasets, parameters) reflect this application — supply your own plot data, land cover product(s), study area, and parameters to apply gvaMapping to a different GVA, region, or dataset.
+>>>>>>> 0f4b334 (Reframe README as a generic tool with lichen example separated out; add manuscript citation)
 
 ## What it does
 
@@ -92,12 +100,26 @@ Raster and plot outputs are written to `gva_output_dir` rather than kept as `sim
 
 ## Data sources & citation
 
+<<<<<<< HEAD
+=======
+If you use `gvaMapping`, please cite:
+
+> Guilhem, A.C., Barros, C., Degré-Timmons, G.É., Greuel, R.J., Errington, R.C., Baltzer, J.L., McIntire, E.J.B., Johnstone, J.F., & Cumming, S.G. gvaMapping: a SpaDES module for mapping ground vegetation attributes from plot data and land cover products. *Ecological Solutions and Evidence* (in review).
+
+See also [`citation.bib`](citation.bib).
+
+Data sources for the example application above:
+
+>>>>>>> 0f4b334 (Reframe README as a generic tool with lichen example separated out; add manuscript citation)
 - Deninu Kué First Nation et al. (2026). *Lichen plot data*. Zenodo. [doi:10.5281/zenodo.20054559](https://doi.org/10.5281/zenodo.20054559)
 - Wek'èezhìi boreal caribou range planning regions boundary. Zenodo. [doi:10.5281/zenodo.20492584](https://doi.org/10.5281/zenodo.20492584)
 - Matasci, G. et al. SCANFI (Spatialized CAnadian National Forest Inventory). Government of Canada Open Data, Open Government Licence – Canada.
 
+<<<<<<< HEAD
 Module citation: see [`citation.bib`](citation.bib).
 
+=======
+>>>>>>> 0f4b334 (Reframe README as a generic tool with lichen example separated out; add manuscript citation)
 ## Author
 
 Andres Caseiro Guilhem (andres.caseiro-guilhem.1@ulaval.ca), Université Laval.
