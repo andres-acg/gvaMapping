@@ -103,7 +103,14 @@ loadLandCovers <- function(land_cover_paths) {
     
     stop("❌ Unsupported land cover format.")
   })
-  
+
+  # lapply(names(land_cover_paths), ...) does NOT carry those names onto its
+  # result -- lapply only names its output from the names of its INPUT
+  # object, and here the input is a plain (unnamed) character vector of
+  # names, not land_cover_paths itself. Without this, sim$land_cover_paths$
+  # land_cover1 silently becomes unreachable by name after this function runs.
+  names(result) <- names(land_cover_paths)
+
   # output
   return(result)
 }

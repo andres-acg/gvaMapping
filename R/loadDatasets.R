@@ -8,7 +8,15 @@ loadDatasets <- function(dataset_list) {
   result <- lapply(names(dataset_list), function(name) {
     
     x <- dataset_list[[name]]
-    
+
+    # ----------------------------------------------------------
+    # Step -1 — Already loaded (e.g. built directly in the global script's
+    # dataset_list block via a preprocessing.R loader) — use as-is.
+    # ----------------------------------------------------------
+    if (is.data.frame(x)) {
+      return(x)
+    }
+
     # ----------------------------------------------------------
     # Step 0 — Create dataset-specific folder
     # ----------------------------------------------------------
@@ -105,6 +113,13 @@ loadDatasets <- function(dataset_list) {
     
     stop("❌ Unsupported file type: ", ext)
   })
-  
+
+  # lapply(names(dataset_list), ...) does NOT carry those names onto its
+  # result -- lapply only names its output from the names of its INPUT
+  # object, and here the input is a plain (unnamed) character vector of
+  # names, not dataset_list itself. Without this, sim$dataset_list$dataset1
+  # silently becomes unreachable by name after this function runs.
+  names(result) <- names(dataset_list)
+
   return(result)
 }
