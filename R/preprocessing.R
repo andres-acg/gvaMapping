@@ -6,7 +6,8 @@
 #     plotID, quadID, gva, measure_quad, latitude, longitude, sample_date
 # One CSV per dataset, written once to inputs/datasets/<datasetN>/, then
 # reused on every later run. The build-once driver loop lives in
-# globalscript_backcasting.R, not here -- this file only defines functions.
+# SpaDES-gvaMapping/globalscript.R (the sideEffects block), not here -- this
+# file only defines functions.
 #
 # Two kinds of raw dataset:
 #   - COVER data (percent cover recorded in the field): needs converting to
@@ -135,7 +136,7 @@ convertCoverToLichenBiomass <- function(df, sampling_size_m2,
 #' bearing table) to gvaMapping's expected preformatted schema: plotID,
 #' quadID, gva, measure_quad, latitude, longitude, sample_date.
 #' measure_quad = biomass_dens_quad (kg/ha), matching measure_class =
-#' "intensive" in globalscript_backcasting.R (values already per unit area).
+#' "intensive" in gvaMapping's own parameters (values already per unit area).
 formatBiomassForGvaMapping <- function(df, valueCol = "biomass_dens_quad",
                                        gvaLabel = "Cladonia spp.") {
   stopifnot(valueCol %in% names(df))
@@ -152,7 +153,7 @@ formatBiomassForGvaMapping <- function(df, valueCol = "biomass_dens_quad",
 ## and loadNFICoverData() return a long cover table (plotID, quadID, species,
 ## percent, latitude, longitude, sample_date) meant for
 ## convertCoverToLichenBiomass(). loadCookBiomassData() and
-## loadDeninuBiomassData() are already biomass (kg/ha) and return the final
+## loadAndPrepRawDataset1() are already biomass (kg/ha) and return the final
 ## gva/measure_quad schema directly.
 ###############################################################################
 
@@ -392,11 +393,28 @@ loadCookBiomassData <- function(raw_biomass_path, raw_site_path) {
 }
 
 # ------------------------------------------------------------------
-# Deninu Kue First Nation et al. (2026) -- biomass data (already kg/ha),
-# one Excel workbook from Zenodo. Unchanged logic from the original working
-# version -- renamed only, for consistency with the other four loaders.
+# dataset1 (Deninu Kue First Nation et al. 2026) -- biomass data (already
+# kg/ha), one Excel workbook from Zenodo. Loads AND prepares/formats it into
+# gvaMapping's expected schema, hence the name.
+#
+# raw_datasetA can be a local file path or a URL; a URL default is provided
+# (dataset1's own public record) so this loader works out of the box with no
+# arguments, and is what both the global script and this module's own
+# no-data-supplied default call.
 # ------------------------------------------------------------------
-loadDeninuBiomassData <- function(raw_datasetA, epsg_code = 32611) {
+loadAndPrepRawDataset1 <- function(
+    raw_datasetA = paste0("https://zenodo.org/records/20054559/files/",
+                           "EA3922%20Lichen%20Plot%20Data_ALL%20YEARS_SUMMARY%20BIOMASS%20three%20ways.xlsx",
+                           "?download=1"),
+    epsg_code = 32611) {
+
+  if (grepl("^https?://", raw_datasetA)) {
+    raw_datasetA <- reproducible::prepInputs(
+      url = raw_datasetA,
+      targetFile = basename(sub("\\?.*$", "", raw_datasetA)),
+      destinationPath = file.path(getOption("spades.inputPath"), "datasets", "dataset1"),
+      fun = NA, overwrite = FALSE)
+  }
 
   df <- readxl::read_excel(raw_datasetA)
 

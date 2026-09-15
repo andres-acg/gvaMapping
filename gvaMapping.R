@@ -29,9 +29,8 @@ defineModule(sim, list(
                   "terra",
                   "ggspatial",
                   # NEW 2026-08-11: public-data-only defaults in Init() use
-                  # reproducible::prepInputs() and LandR::prepInputs_SCANFI_LCC_FAO()
+                  # reproducible::prepInputs()
                   "reproducible",
-                  "PredictiveEcology/LandR@development",
                   #cross-validation
                   "metrica",
                   "sampling", 
@@ -70,7 +69,7 @@ defineModule(sim, list(
     
     
     ##list with sampling size for each dataset to weight mean calculation - in m²
-    ## DEFAULT (2026-08-11): dataset1's own sampling size (0.25 m2, Deninu Kue
+    ## DEFAULT (2026-08-11): dataset1's own sampling size (0.25 m2, Deninu Kųę́
     ## First Nation et al.), matching the auto-fetched public-data-only
     ## default Init() falls back to when dataset_list isn't supplied (see
     ## Init()). Supply your own list (named by your own dataset_list entries)
@@ -79,10 +78,10 @@ defineModule(sim, list(
                     "sampling unit size per plot dataset (in m²). Must have names according to datasets (e.g., sampling_size_m2_dataset1, sampling_size_m2_dataset2, etc)"),
 
     # target gva(s)
-    ## DEFAULT (2026-08-11): the Cladonia spp. (reindeer lichen) target list
-    ## already used throughout this project (see globalscript_backcasting.R),
-    ## so the module has a real target to filter/pool even with zero params
-    ## supplied.
+    ## DEFAULT (2026-08-11): the Cladonia spp. (caribou lichen) target list
+    ## used in this module's own example application (see
+    ## SpaDES-gvaMapping/globalscript.R), so the module has a real target to
+    ## filter/pool even with zero params supplied.
     defineParameter("target_gva", "character",
                     c("mitis", "Cladmit", "MIT", "CLMI",
                       "arbuscula", "Cladarb", "ARB",
@@ -98,47 +97,68 @@ defineModule(sim, list(
 
     #LAND COVER PRODUCTS parameters
     ## name of land cover product(s) to be used in the analysis (must match the name in the file name of the land cover product)
-    ## DEFAULT (2026-08-11): SCANFI, matching the auto-fetched public-data-only
+    ## DEFAULT (2026-08-11): LCC10 (2010 Land Cover of Canada) and NTEMS
+    ## (VLCE2), the two public land cover products this module's own example
+    ## application uses (see SpaDES-gvaMapping/globalscript.R) and the same
     ## default Init() falls back to when land_cover_paths isn't supplied.
-    defineParameter("list_of_land_cover_names", "list", list(land_cover1 = "SCANFI"), NA, NA,
+    defineParameter("list_of_land_cover_names", "list",
+                    list(land_cover1 = "LCC10", land_cover2 = "NTEMS"), NA, NA,
                     "list with name of land cover product(s) (must match the name in the file name of the land cover product)"),
 
     ##land cover product(s) reference year
-    ## DEFAULT CHANGED (2026-08-11): was 2010, an arbitrary leftover not
-    ## aligned with SCANFI's actual coverage or this project's own usage
-    ## elsewhere (classMeansYear = 2020 in globalscript_backcasting.R).
-    ## Changed to 2020 for consistency -- SCANFI's coverage should be
-    ## reconfirmed before using a different year here.
-    defineParameter("land_cover_year", "numeric", 2020, NA, NA,
+    ## DEFAULT (2026-08-11): 2010, matching both LCC10's and NTEMS's coverage
+    ## for this project's example application (see globalscript.R).
+    defineParameter("land_cover_year", "numeric", 2010, NA, NA,
                     "reference year for land cover products used to filter plots based on disturbance history"),
 
     #inapplicable land cover class(es) for mapping per land cover product
-    ## DEFAULT (2026-08-11): matches the SCANFI legend already used in
-    ## globalscript_backcasting.R (class 20 = water; see that file's own
-    ## comment on the SCANFI Canada-LCC/FAO code legend for the full mapping).
-    defineParameter("inapplicable_classes_list", "list", list(land_cover1 = c(20)), NA, NA,
+    ## DEFAULT (2026-08-11): matches the LCC10/NTEMS legends already used in
+    ## SpaDES-gvaMapping/globalscript.R (LCC10: 17 = urban, 18 = water;
+    ## NTEMS: 20 = water, 31 = snow/ice).
+    defineParameter("inapplicable_classes_list", "list",
+                    list(land_cover1 = c(17, 18), land_cover2 = c(20, 31)), NA, NA,
                     "vector of inapplicable land cover class(es) per land cover product  (e.g., water and urban classes)"),
 
     #PLOTTING parameters
     #water classes for visualization and identification of their proportion in the study area
      #compared to terrestrial classes
-    ## DEFAULT (2026-08-11): matches globalscript_backcasting.R.
-    defineParameter("water_classes_list", "list", list(land_cover1 = 20), NA, NA,
+    ## DEFAULT (2026-08-11): matches globalscript.R (LCC10: 18 = water;
+    ## NTEMS: 20 = water).
+    defineParameter("water_classes_list", "list",
+                    list(land_cover1 = 18, land_cover2 = 20), NA, NA,
                     "water classes for visualization and identification of their proportion in the study area"),
 
-    ## DEFAULT (2026-08-11): matches globalscript_backcasting.R's SCANFI
-    ## Canada-LCC/FAO abbreviation table.
+    ## DEFAULT (2026-08-11): matches globalscript.R's LCC10 and NTEMS
+    ## abbreviation tables.
     defineParameter(
       "abbrev_list", "list",
-      list(land_cover1 = c("0"   = "0-Unclass.*",
-                           "20"  = "20-Water",
-                           "30"  = "30-Rock",
+      list(land_cover1 = c("1"  = "1-Needle.\nforest",
+                           "2"  = "2-Taiga \nneedle.\nforest*",
+                           "5"  = "5-Broad.\ndecid.\nforest*",
+                           "6"  = "6-Mixed\nforest*",
+                           "8"  = "8-Shrub.",
+                           "10" = "10-Grass.*",
+                           "11" = "Shrubland-\nlichen-moss",
+                           "12" = "Sub-polar/polar\ngrassland-\nlichen-moss",
+                           "13" = "Sub-polar/polar\nbarren-\nlichen-moss",
+                           "14" = "14-Wet.",
+                           "15" = "Cropland",
+                           "16" = "16-Barren\nlands*",
+                           "17" = "17-Urban*",
+                           "18" = "18-Water",
+                           "19" = "Snow and\nice"),
+           land_cover2 = c("20"  = "20-Water",
+                           "31"  = "31-Snow/Ice*",
+                           "32"  = "Rock/\nRubble",
+                           "33"  = "33-Exp.\nbarren\nland*",
                            "40"  = "40-Bryoids*",
                            "50"  = "50-Shrubs",
-                           "100" = "100-Herbs",
+                           "80"  = "80-Wet.",
+                           "81"  = "81-Wet.-\ntreed*",
+                           "100" = "Herbs",
                            "210" = "210-Conif.",
                            "220" = "220-Broad.*",
-                           "230" = "230-Mixed.")),
+                           "230" = "230-Mixed.*")),
       NA, NA,
       "List wwith vector(s) with land cover classes abbreviations per land cover product for barplot(s)"
     ),
@@ -257,19 +277,16 @@ Init <- function(sim) {
   # without ANY of the user's own private plot/study-area/land-cover data
   # supplied. Each of the three inputs below auto-fetches a PUBLIC source if
   # not already supplied -- Zenodo (the Wek'eezhii study area boundary and
-  # the Deninu Kue First Nation et al. lichen plot dataset) and SCANFI (Open
-  # Government Licence - Canada; the SAME land cover product this workflow's
-  # simulation years themselves use, not a lower-quality substitute). This
-  # mirrors the "always-runnable-with-defaults" pattern already used
-  # elsewhere in this project (WB_LichenBiomass's random cohortData/
-  # pixelGroupMap when unsupplied; WB_VegBasedDrainage's shipped
-  # data/plotData.csv).
+  # the Deninu Kųę́ First Nation et al. lichen plot dataset) and LCC10 + NTEMS
+  # (Government of Canada open data; the SAME two land cover products this
+  # module's own example application uses, not a lower-quality substitute --
+  # see SpaDES-gvaMapping/globalscript.R).
   #
   # What is deliberately NOT auto-generated: datasets 2-5 (Baltzer,
   # Errington, NFI, Cook et al.) stay local-only/opt-in via useDataset in
-  # globalscript_backcasting.R -- they are private field data with no public
-  # source to fetch, and there is no fabricated/synthetic placeholder for
-  # them here. The default this module falls back to is REAL statistics
+  # SpaDES-gvaMapping/globalscript.R -- they are private field data with no
+  # public source to fetch, and there is no fabricated/synthetic placeholder
+  # for them here. The default this module falls back to is REAL statistics
   # computed from REAL (if limited, single-source) public data, never made-up
   # numbers.
   ##############################################################################
@@ -299,61 +316,38 @@ Init <- function(sim) {
 
   # 2. Land cover -------------------------------------------------------------
   # Same reasoning as study area: only NULL/empty counts as "not supplied" --
-  # a user-supplied URL is left alone for loadLandCovers() to resolve, not
-  # second-guessed and overwritten here.
+  # a user-supplied path/URL is left alone. LCC10 and NTEMS are the same two
+  # public land cover products this module's own example application uses
+  # (see SpaDES-gvaMapping/globalscript.R); their URLs are simply handed to
+  # the existing generic pipeline (loadLandCovers() below, then
+  # cropLandCoverProduct()), exactly as globalscript.R's own explicit
+  # configuration already does -- no separate fetch/reclassify logic needed.
   landCoverMissing <- is.null(sim$land_cover_paths) || length(sim$land_cover_paths) == 0L
   if (landCoverMissing) {
-    message("🌐 land_cover_paths not supplied (or file(s) not found) -- auto-fetching the ",
-            "public SCANFI land cover product for year ", P(sim)$land_cover_year, "...")
-    lcDir <- file.path(module_output_dir, "default_land_cover")
-    dir.create(lcDir, recursive = TRUE, showWarnings = FALSE)
-    lcTif <- file.path(lcDir, sprintf("SCANFI_LCC_FAO_%d_studyArea_native.tif",
-                                      P(sim)$land_cover_year))
-    if (!file.exists(lcTif)) {
-      saForLC <- terra::aggregate(terra::vect(sim$study_area_path))
-      lccDefault <- LandR::prepInputs_SCANFI_LCC_FAO(
-        year            = P(sim)$land_cover_year,
-        dataVersion     = "V2",
-        disturbedCode   = 240,
-        destinationPath = getOption("spades.inputPath"),
-        cropTo          = saForLC,
-        maskTo          = saForLC
-      )
-      # Same 240 (disturbed) -> 50 (shrub) reclass rule used everywhere else
-      # in this workflow (rstLCC, WB_NonForestedVegClasses, and
-      # globalscript_backcasting.R's own class-mean build), so a class code
-      # here means the same thing it means in the simulation.
-      lccDefault[lccDefault == 240] <- 50
-      terra::writeRaster(lccDefault, lcTif, overwrite = TRUE, datatype = "INT2U")
-    }
-    sim$land_cover_paths <- list(land_cover1 = lcTif)
+    message("🌐 land_cover_paths not supplied -- auto-fetching the public LCC10 (2010 Land ",
+            "Cover of Canada) and NTEMS (VLCE2) land cover products...")
+    sim$land_cover_paths <- list(
+      land_cover1 = paste0("https://datacube-prod-data-public.s3.ca-central-1.amazonaws.com/",
+                            "store/land/landcover/landcover-2010-classification.tif"),
+      land_cover2 = "https://opendata.nfis.org/downloads/forest_change/CA_forest_VLCE2_2010.zip"
+    )
   }
 
   # 3. Plot data (dataset1 ONLY -- see header comment) -----------------------
   datasetListMissing <- is.null(sim$dataset_list) || length(sim$dataset_list) == 0L
   if (datasetListMissing) {
     message("🌐 dataset_list not supplied -- auto-building the public default (dataset1, ",
-            "Deninu Kue First Nation et al., Zenodo doi:10.5281/zenodo.20054559) only. ",
-            "Datasets 2-5 (Baltzer, Errington, NFI, Cook et al.) are private field data with ",
-            "no public source and are NOT substituted with placeholder data -- supply your ",
-            "own dataset_list (see globalscript_backcasting.R's useDataset/rawDataPaths) to ",
-            "include them.")
+            "Deninu Kųę́ First Nation et al.) only. Datasets 2-5 (Baltzer, Errington, NFI, ",
+            "Cook et al.) are private field data with no public source and are NOT ",
+            "substituted with placeholder data -- supply your own dataset_list to include them.")
     ds1Dir <- file.path(getOption("spades.inputPath"), "datasets", "dataset1")
     dir.create(ds1Dir, recursive = TRUE, showWarnings = FALSE)
     ds1Csv <- file.path(ds1Dir, "dataset1_formatted.csv")
     if (!file.exists(ds1Csv)) {
-      # loadDeninuBiomassData() is defined in R/preprocessing.R, auto-sourced
-      # by SpaDES as part of this module -- no explicit source() needed here
-      # (unlike globalscript_backcasting.R's own sideEffects block, which
-      # runs outside any module's namespace and does need it).
-      rawDeninu <- reproducible::prepInputs(
-        url = paste0("https://zenodo.org/records/20054559/files/",
-                     "EA3922%20Lichen%20Plot%20Data_ALL%20YEARS_SUMMARY%20BIOMASS%20three%20ways.xlsx",
-                     "?download=1"),
-        targetFile = "EA3922 Lichen Plot Data_ALL YEARS_SUMMARY BIOMASS three ways.xlsx",
-        destinationPath = ds1Dir, fun = NA, overwrite = FALSE)
-      dsOut <- loadDeninuBiomassData(raw_datasetA = rawDeninu)
-      write.csv(dsOut, ds1Csv, row.names = FALSE)
+      # loadAndPrepRawDataset1() (R/preprocessing.R, auto-sourced by SpaDES as
+      # part of this module) defaults to dataset1's own public Zenodo link
+      # when called with no arguments.
+      write.csv(loadAndPrepRawDataset1(), ds1Csv, row.names = FALSE)
     }
     sim$dataset_list <- list(dataset1 = ds1Csv)
   }
