@@ -186,7 +186,12 @@ defineModule(sim, list(
                      (STEP 4). Only honoured when a single land cover product is supplied
                      -- with more than one product the SMAPE values are needed to weight
                      the ensemble map, so the cross-validation is always run. Use FALSE
-                     when only the class-mean table is needed.")
+                     when only the class-mean table is needed."),
+    defineParameter("n_folds", "numeric", 10, 1, NA,
+                    "Number of folds for k-fold cross-validation -- used both for the
+                     per-land-cover-product GVA raster cross-validation (STEP 4) and,
+                     when more than one land cover product is supplied, the ensemble map
+                     cross-validation.")
 
 
 ),
@@ -744,7 +749,7 @@ classProportionChart(
    list_of_land_cover_names = P(sim)$list_of_land_cover_names,
    inapplicable_classes_list = P(sim)$inapplicable_classes_list,
    seed = P(sim)$seed,
-   n_folds = 1,
+   n_folds = P(sim)$n_folds,
    min_plots_per_class = 1,
    sample_fraction = 0.7,
    output_dir_fold = file.path(module_output_dir, "cross_validation_results", "folds"),
@@ -985,7 +990,7 @@ classProportionChart(
    output_dir_in = sparse_raster_dir,
    output_dir_out = file.path(module_output_dir, "cross_validation_results"),
    seed = P(sim)$seed,
-   n_folds = 1,
+   n_folds = P(sim)$n_folds,
    holdout_ratio = 0.3
  )
 

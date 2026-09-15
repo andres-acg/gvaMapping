@@ -74,6 +74,7 @@ Defaults below (set 2026-08-11) match the LCC10 + NTEMS + Deninu Kųę́ public-
 | `water_classes_list` | `list(land_cover1 = 18, land_cover2 = 20)` | Water class(es) per product, for visualization/area accounting |
 | `abbrev_list` | LCC10 and NTEMS legends | Class code → label lookup per product for plots |
 | `run_cross_validation` | `TRUE` | Set `FALSE` to skip k-fold CV when only the class-mean table is needed |
+| `n_folds` | `10` | Number of folds for k-fold cross-validation (both the per-product GVA raster CV and, with more than one land cover product, the ensemble map CV) |
 | `gva_output_dir` | `<outputPath>/gvaMapping` | Where outputs are written/cached; point several runs at the same folder to compute once and reuse |
 | `seed` | `81` | Reproducibility seed for cross-validation/sampling |
 
